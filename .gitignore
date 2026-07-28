@@ -3,3 +3,5 @@ dist/
 .env
 *.zip
 casani-ai-studio/
+
+*.tsbuildinfo
