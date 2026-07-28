@@ -9,6 +9,7 @@ import {
   uid,
 } from '../lib/store';
 import { createProductWithImage } from '../lib/productService';
+import { createProject } from '../lib/projectService';
 
 const spaces = ['Kitchen', 'Dining Room', 'Living Room', 'Bedroom', 'Hotel', 'Villa'];
 const styles = ['Modern', 'Luxury', 'Minimal', 'Contemporary', 'Classic'];
@@ -73,7 +74,16 @@ export default function Create() {
 
       const productId = product.id;
 
-      // 2. Mirror vào localStorage để các màn hiện tại vẫn hoạt động
+      // 2. Tạo project thật trong Supabase
+      const supabaseProject = await createProject({
+        productId,
+        space,
+        style,
+        mood,
+        ratio,
+      });
+
+      // 3. Mirror vào localStorage để các màn hiện tại vẫn hoạt động
       saveProducts([
         ...getProducts(),
         {
@@ -86,7 +96,7 @@ export default function Create() {
         },
       ]);
 
-      // 3. Thử gọi AI Edge Function
+      // 4. Thử gọi AI Edge Function
       let outputs: string[] = demo;
 
       try {
@@ -118,8 +128,8 @@ export default function Create() {
         // Giữ demo images cho đến khi Edge Function được deploy.
       }
 
-      // 4. Giữ project local hiện tại để Results/Dashboard tiếp tục chạy
-      const id = uid();
+      // 5. Giữ project local hiện tại để Results/Dashboard tiếp tục chạy
+      const id = supabaseProject.id;
 
       saveProjects([
         ...getProjects(),
