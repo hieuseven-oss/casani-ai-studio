@@ -1,2 +1,127 @@
-import {useParams,Link} from 'react-router-dom';import {getProjects} from '../lib/store';import {Download,RefreshCw,Check,ArrowLeft} from 'lucide-react';import {useState} from 'react';
-export default function Results(){const {id}=useParams();const p=getProjects().find(x=>x.id===id);const [chosen,setChosen]=useState(0);if(!p)return <div className="empty">Project not found.</div>;return <><header className="sectionHead topmini"><div><Link to="/projects" className="back"><ArrowLeft size={16}/>Projects</Link><h1>{p.productName}</h1><p>{p.style} · {p.space} · {p.mood} · {p.ratio}</p></div><button className="btn"><RefreshCw size={17}/>Regenerate</button></header><div className="resultGrid">{p.outputs.map((x,i)=><article className={'result '+(chosen===i?'chosen':'')} key={x+i}><img src={x}/><div className="resultActions"><button onClick={()=>setChosen(i)}>{chosen===i?<><Check size={16}/>Selected</>:'Select'}</button><a href={x} target="_blank" rel="noreferrer"><Download size={16}/>Download</a></div></article>)}</div><div className="stickyBar"><div><b>Variation {chosen+1} selected</b><span>Ready for poster layout or export.</span></div><button className="btn">Create poster</button><a className="btn primary" href={p.outputs[chosen]} target="_blank" rel="noreferrer"><Download size={17}/>Export image</a></div></>}
+import { useEffect, useState } from 'react';
+import { Link, useParams } from 'react-router-dom';
+import { ArrowLeft } from 'lucide-react';
+import { getProjectById } from '../lib/projectService';
+import { supabase } from '../lib/supabase';
+
+type ProjectData = {
+  id: string;
+  space: string | null;
+  style: string | null;
+  mood: string | null;
+  aspect_ratio: string | null;
+  status: string | null;
+  products:
+    | {
+        id: string;
+        name: string;
+        image_url: string | null;
+        sku: string | null;
+      }
+    | {
+        id: string;
+        name: string;
+        image_url: string | null;
+        sku: string | null;
+      }[]
+    | null;
+};
+
+export default function Results() {
+  const { id } = useParams();
+  const [project, setProject] = useState<ProjectData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState('');
+
+  useEffect(() => {
+    if (!id) {
+      setErrorMsg('Project ID is missing.');
+      setLoading(false);
+      return;
+    }
+
+    getProjectById(id)
+      .then(async (data) => {
+        const loaded = data as ProjectData;
+
+        const product = Array.isArray(loaded.products)
+          ? loaded.products[0]
+          : loaded.products;
+
+        if (product?.image_url) {
+          const { data: signed } = await supabase.storage
+            .from('product-images')
+            .createSignedUrl(product.image_url, 60 * 60);
+
+          if (signed?.signedUrl) {
+            product.image_url = signed.signedUrl;
+          }
+        }
+
+        setProject(loaded);
+      })
+      .catch((error) => {
+        setErrorMsg(
+          error instanceof Error ? error.message : 'Unable to load project.'
+        );
+      })
+      .finally(() => {
+        setLoading(false);
+      });
+  }, [id]);
+
+  if (loading) {
+    return <div className="empty">Loading project...</div>;
+  }
+
+  if (errorMsg || !project) {
+    return (
+      <div className="empty">
+        {errorMsg || 'Project not found.'}
+      </div>
+    );
+  }
+
+  const product = Array.isArray(project.products)
+    ? project.products[0]
+    : project.products;
+
+  return (
+    <>
+      <header className="sectionHead topmini">
+        <div>
+          <Link to="/projects" className="back">
+            <ArrowLeft size={16} />
+            Projects
+          </Link>
+
+          <h1>{product?.name || 'Untitled project'}</h1>
+
+          <p>
+            {project.style || '—'} · {project.space || '—'} ·{' '}
+            {project.mood || '—'} · {project.aspect_ratio || '—'}
+          </p>
+        </div>
+      </header>
+
+      <div className="resultGrid">
+        {product?.image_url && (
+          <article className="result">
+            <img
+              src={product.image_url}
+              alt={product.name || 'Product'}
+            />
+
+            <div className="resultActions">
+              <span>Original product</span>
+            </div>
+          </article>
+        )}
+
+        <div className="empty">
+          No generated visuals yet
+        </div>
+      </div>
+    </>
+  );
+}

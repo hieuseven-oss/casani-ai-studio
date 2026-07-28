@@ -10,6 +10,7 @@ import {
 } from '../lib/store';
 import { createProductWithImage } from '../lib/productService';
 import { createProject } from '../lib/projectService';
+import { createGeneration } from '../lib/generationService';
 
 const spaces = ['Kitchen', 'Dining Room', 'Living Room', 'Bedroom', 'Hotel', 'Villa'];
 const styles = ['Modern', 'Luxury', 'Minimal', 'Contemporary', 'Classic'];
@@ -81,6 +82,12 @@ export default function Create() {
         style,
         mood,
         ratio,
+      });
+
+      await createGeneration({
+        projectId: supabaseProject.id,
+        prompt: `${name} | ${space} | ${style} | ${mood} | ${ratio}`,
+        model: 'fal',
       });
 
       // 3. Mirror vào localStorage để các màn hiện tại vẫn hoạt động

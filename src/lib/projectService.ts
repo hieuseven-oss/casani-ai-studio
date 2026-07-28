@@ -73,3 +73,33 @@ export async function getProjectsFromSupabase() {
 
   return data ?? [];
 }
+
+export async function getProjectById(id: string) {
+  const { data, error } = await supabase
+    .from('projects')
+    .select(`
+      id,
+      user_id,
+      product_id,
+      space,
+      style,
+      mood,
+      aspect_ratio,
+      status,
+      created_at,
+      products (
+        id,
+        name,
+        image_url,
+        sku
+      )
+    `)
+    .eq('id', id)
+    .single();
+
+  if (error) {
+    throw new Error(`Project load failed: ${error.message}`);
+  }
+
+  return data;
+}
