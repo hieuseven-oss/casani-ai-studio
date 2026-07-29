@@ -115,12 +115,21 @@ export default function Results() {
       'scene' | 'lighting' | 'camera' | 'creative'
     >('scene');
 
-  // Compare Mode V1
-  const [compareOutputIds, setCompareOutputIds] =
-    useState<string[]>([]);
+  type CompareItem = {
+    outputId: string;
+    generationId: string;
+    imageUrl: string;
+    approved: boolean;
+    versionNumber: number;
+    visualNumber: number;
+  };
+
+  // Cross-version Compare
+  const [compareItems, setCompareItems] =
+    useState<CompareItem[]>([]);
 
   const compareMode =
-    compareOutputIds.length > 0;
+    compareItems.length > 0;
 
   async function loadOutputs(
     targetGenerationId: string
@@ -326,8 +335,6 @@ export default function Results() {
     setLoadingVersion(true);
     setErrorMsg('');
 
-    setCompareOutputIds([]);
-
     try {
       await loadOutputs(
         targetGenerationId
@@ -482,40 +489,79 @@ export default function Results() {
   }
 
   function toggleCompareOutput(
-    outputId: string
+    output: GenerationOutput,
+    visualNumber: number
   ) {
-    setCompareOutputIds(
+    if (!generationId) {
+      return;
+    }
+
+    const versionIndex =
+      generations.findIndex(
+        (generation) =>
+          generation.id === generationId
+      );
+
+    const item: CompareItem = {
+      outputId: output.id,
+      generationId,
+      imageUrl: output.image_url,
+      approved: Boolean(
+        output.approved
+      ),
+      versionNumber:
+        versionIndex >= 0
+          ? versionIndex + 1
+          : 1,
+      visualNumber,
+    };
+
+    setCompareItems(
       (current) => {
-        if (
-          current.includes(
-            outputId
-          )
-        ) {
+        const exists =
+          current.some(
+            (compareItem) =>
+              compareItem.outputId ===
+              output.id
+          );
+
+        if (exists) {
           return current.filter(
-            (id) =>
-              id !== outputId
+            (compareItem) =>
+              compareItem.outputId !==
+              output.id
           );
         }
 
-        if (
-          current.length >= 2
-        ) {
+        if (current.length >= 2) {
           return [
             current[1],
-            outputId,
+            item,
           ];
         }
 
         return [
           ...current,
-          outputId,
+          item,
         ];
       }
     );
   }
 
+  function removeCompareItem(
+    outputId: string
+  ) {
+    setCompareItems(
+      (current) =>
+        current.filter(
+          (item) =>
+            item.outputId !== outputId
+        )
+    );
+  }
+
   function exitCompareMode() {
-    setCompareOutputIds([]);
+    setCompareItems([]);
   }
 
   async function downloadOutput(
@@ -995,14 +1041,15 @@ export default function Results() {
               display: 'flex',
               justifyContent:
                 'space-between',
-              alignItems: 'center',
+              alignItems:
+                'center',
               gap: 16,
               marginBottom: 18,
             }}
           >
             <div>
               <p className="eyebrow">
-                COMPARE MODE
+                CROSS-VERSION COMPARE
               </p>
 
               <h2>
@@ -1015,8 +1062,8 @@ export default function Results() {
                   fontSize: 13,
                 }}
               >
-                Select up to two visuals
-                from this version.
+                Compare up to two visuals
+                from different versions.
               </div>
             </div>
 
@@ -1028,7 +1075,7 @@ export default function Results() {
               }
               disabled={busy}
             >
-              Exit Compare
+              Clear Compare
             </button>
           </div>
 
@@ -1040,63 +1087,81 @@ export default function Results() {
               gap: 18,
             }}
           >
-            {compareOutputIds.map(
-              (
-                compareId,
-                compareIndex
-              ) => {
-                const compareOutput =
-                  outputs.find(
-                    (output) =>
-                      output.id ===
-                      compareId
-                  );
+            {compareItems.map(
+              (item) => {
+                const isCurrentVersion =
+                  item.generationId ===
+                  generationId;
 
-                if (!compareOutput) {
-                  return null;
-                }
+                const liveOutput =
+                  isCurrentVersion
+                    ? outputs.find(
+                        (output) =>
+                          output.id ===
+                          item.outputId
+                      )
+                    : null;
 
-                const outputIndex =
-                  outputs.findIndex(
-                    (output) =>
-                      output.id ===
-                      compareId
-                  );
+                const approved =
+                  liveOutput
+                    ? Boolean(
+                        liveOutput.approved
+                      )
+                    : item.approved;
 
                 return (
                   <article
-                    className="result"
-                    key={compareId}
+                    className={`result ${
+                      approved
+                        ? 'approvedResult'
+                        : ''
+                    }`}
+                    key={
+                      item.outputId
+                    }
                   >
                     <img
                       src={
-                        compareOutput.image_url
+                        item.imageUrl
                       }
-                      alt={`Compare visual ${
-                        compareIndex + 1
-                      }`}
+                      alt={`Version ${item.versionNumber} visual ${item.visualNumber}`}
                     />
 
                     <div className="resultActions">
                       <b>
+                        Version{' '}
+                        {item.versionNumber}
+                        {' · '}
                         Visual{' '}
-                        {outputIndex + 1}
+                        {item.visualNumber}
                       </b>
 
                       <button
                         type="button"
-                        className="btn"
+                        className={
+                          selectedOutputId ===
+                          item.outputId
+                            ? 'btn primary'
+                            : 'btn'
+                        }
                         disabled={busy}
-                        onClick={() => {
+                        onClick={async () => {
+                          if (
+                            item.generationId !==
+                            generationId
+                          ) {
+                            await selectVersion(
+                              item.generationId
+                            );
+                          }
+
                           setSelectedOutputId(
-                            compareOutput.id
+                            item.outputId
                           );
 
                           setReferenceMode(
                             'visual'
                           );
-
-                          setCompareOutputIds([]);
 
                           setTimeout(() => {
                             document
@@ -1104,60 +1169,53 @@ export default function Results() {
                                 'results-studio'
                               )
                               ?.scrollIntoView({
-                                behavior: 'smooth',
-                                block: 'start',
+                                behavior:
+                                  'smooth',
+                                block:
+                                  'start',
                               });
-                          }, 0);
+                          }, 100);
                         }}
                       >
                         {selectedOutputId ===
-                        compareOutput.id
+                        item.outputId
                           ? 'Reference selected'
                           : 'Use as reference'}
                       </button>
 
                       <button
                         type="button"
-                        className={
-                          compareOutput.approved
-                            ? 'btn primary'
-                            : 'btn'
-                        }
-                        disabled={
-                          busy ||
-                          Boolean(
-                            approvingId
-                          ) ||
-                          Boolean(
-                            compareOutput.approved
-                          )
-                        }
+                        className="btn"
+                        disabled={busy}
                         onClick={() =>
-                          approveOutput(
-                            compareOutput.id
+                          removeCompareItem(
+                            item.outputId
                           )
                         }
                       >
-                        {compareOutput.approved
-                          ? 'Approved'
-                          : 'Approve'}
+                        Remove
                       </button>
+
+                      {approved && (
+                        <span>
+                          ✓ Approved
+                        </span>
+                      )}
                     </div>
                   </article>
                 );
               }
             )}
 
-            {compareOutputIds.length <
-              2 && (
+            {compareItems.length < 2 && (
               <div
                 className="empty"
                 style={{
                   minHeight: 240,
                 }}
               >
-                Select one more visual
-                below to compare.
+                Switch version and select
+                another visual to compare.
               </div>
             )}
           </div>
@@ -1443,8 +1501,10 @@ export default function Results() {
                   output.id;
 
                 const isCompared =
-                  compareOutputIds.includes(
-                    output.id
+                  compareItems.some(
+                    (item) =>
+                      item.outputId ===
+                      output.id
                   );
 
                 return (
@@ -1480,7 +1540,8 @@ export default function Results() {
                         }
                         onClick={() =>
                           toggleCompareOutput(
-                            output.id
+                            output,
+                            index + 1
                           )
                         }
                         disabled={busy}

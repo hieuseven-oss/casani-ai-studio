@@ -6,6 +6,7 @@ import {
 } from './generationService';
 import {
   resolveProductImageUrl,
+  resolveAIOutputUrl,
 } from './imageService';
 
 import {
@@ -120,7 +121,9 @@ export async function generateVisualVersion(
     const imageUrl =
       input.referenceMode === 'visual' &&
       input.referenceImageUrl
-        ? input.referenceImageUrl
+        ? await resolveAIOutputUrl(
+            input.referenceImageUrl
+          )
         : await resolveProductImageUrl(
             input.productImagePath
           );
