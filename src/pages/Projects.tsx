@@ -14,6 +14,7 @@ import {
 
 import {
   resolveProductImageUrl,
+  resolveAIOutputUrl,
 } from '../lib/imageService';
 
 import {
@@ -227,7 +228,9 @@ export default function Projects() {
                       ?.image_url
                   ) {
                     imageUrl =
-                      approvedOutput.image_url;
+                      await resolveAIOutputUrl(
+                        approvedOutput.image_url
+                      );
 
                     hasApprovedVisual =
                       true;
@@ -285,7 +288,9 @@ export default function Projects() {
                       ?.image_url
                   ) {
                     imageUrl =
-                      latestOutput.image_url;
+                      await resolveAIOutputUrl(
+                        latestOutput.image_url
+                      );
                   }
                 }
 

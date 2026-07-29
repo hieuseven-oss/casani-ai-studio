@@ -99,11 +99,28 @@ export async function generateVisualVersion(
       {
         body: {
           image_url: imageUrl,
-          name: input.productName,
-          space: input.space,
-          style: input.style,
-          mood: input.mood,
-          ratio: input.ratio,
+
+          project_id:
+            input.projectId,
+
+          generation_id:
+            generationId,
+
+          name:
+            input.productName,
+
+          space:
+            input.space,
+
+          style:
+            input.style,
+
+          mood:
+            input.mood,
+
+          ratio:
+            input.ratio,
+
           custom_prompt:
             input.customPrompt?.trim() ||
             undefined,

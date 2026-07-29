@@ -1,5 +1,8 @@
 import { supabase } from './supabase';
-import { resolveProductImageUrl } from './imageService';
+import {
+  resolveProductImageUrl,
+  resolveAIOutputUrl,
+} from './imageService';
 
 export type DashboardProject = {
   id: string;
@@ -172,7 +175,10 @@ export async function getDashboardData(): Promise<DashboardData> {
           }
 
           if (approvedOutput?.image_url) {
-            imageUrl = approvedOutput.image_url;
+            imageUrl =
+              await resolveAIOutputUrl(
+                approvedOutput.image_url
+              );
           } else {
             // Otherwise use first generated visual.
             const {
@@ -196,7 +202,10 @@ export async function getDashboardData(): Promise<DashboardData> {
             }
 
             if (firstOutput?.image_url) {
-              imageUrl = firstOutput.image_url;
+              imageUrl =
+                await resolveAIOutputUrl(
+                  firstOutput.image_url
+                );
             }
           }
         }

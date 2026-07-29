@@ -168,3 +168,55 @@ export function makeSafeFileName(
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
 }
+
+const AI_OUTPUT_BUCKET = 'ai-outputs';
+
+/**
+ * Backward compatible:
+ *
+ * Old outputs:
+ * https://api.together.ai/...
+ *
+ * New outputs:
+ * project-id/generation-id/visual-1.jpg
+ */
+export async function resolveAIOutputUrl(
+  imagePathOrUrl: string | null | undefined,
+  expiresInSeconds = 60 * 60
+) {
+  if (!imagePathOrUrl) {
+    return '';
+  }
+
+  if (
+    imagePathOrUrl.startsWith('https://') ||
+    imagePathOrUrl.startsWith('http://')
+  ) {
+    return imagePathOrUrl;
+  }
+
+  const {
+    data,
+    error,
+  } =
+    await supabase.storage
+      .from(AI_OUTPUT_BUCKET)
+      .createSignedUrl(
+        imagePathOrUrl,
+        expiresInSeconds
+      );
+
+  if (error) {
+    throw new Error(
+      `AI output URL failed: ${error.message}`
+    );
+  }
+
+  if (!data?.signedUrl) {
+    throw new Error(
+      'Supabase did not return an AI output URL.'
+    );
+  }
+
+  return data.signedUrl;
+}

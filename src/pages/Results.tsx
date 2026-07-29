@@ -22,6 +22,7 @@ import {
 
 import {
   resolveProductImageUrl,
+  resolveAIOutputUrl,
   downloadRemoteImage,
   makeSafeFileName,
 } from '../lib/imageService';
@@ -126,12 +127,25 @@ export default function Results() {
       );
     }
 
+    const resolvedOutputs =
+      await Promise.all(
+        (data ?? []).map(
+          async (output: any) => ({
+            ...output,
+            image_url:
+              await resolveAIOutputUrl(
+                output.image_url
+              ),
+          })
+        )
+      );
+
     setGenerationId(
       targetGenerationId
     );
 
     setOutputs(
-      (data ?? []) as GenerationOutput[]
+      resolvedOutputs as GenerationOutput[]
     );
   }
 
