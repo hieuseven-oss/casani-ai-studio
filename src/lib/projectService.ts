@@ -103,3 +103,26 @@ export async function getProjectById(id: string) {
 
   return data;
 }
+
+export type ProjectStatus =
+  | 'draft'
+  | 'generating'
+  | 'completed'
+  | 'approved'
+  | 'failed';
+
+export async function updateProjectStatus(
+  projectId: string,
+  status: ProjectStatus
+) {
+  const { error } = await supabase
+    .from('projects')
+    .update({ status })
+    .eq('id', projectId);
+
+  if (error) {
+    throw new Error(
+      `Project status update failed: ${error.message}`
+    );
+  }
+}

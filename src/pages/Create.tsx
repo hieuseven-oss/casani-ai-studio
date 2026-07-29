@@ -9,7 +9,10 @@ import {
   uid,
 } from '../lib/store';
 import { createProductWithImage } from '../lib/productService';
-import { createProject } from '../lib/projectService';
+import {
+  createProject,
+  updateProjectStatus,
+} from '../lib/projectService';
 import {
   createGeneration,
   saveGenerationOutputs,
@@ -109,7 +112,15 @@ export default function Create() {
       ]);
 
       // 4. Gọi AI thật
-      await updateGenerationStatus(generation.id, 'processing');
+      await updateProjectStatus(
+        supabaseProject.id,
+        'generating'
+      );
+
+      await updateGenerationStatus(
+        generation.id,
+        'processing'
+      );
 
       const { data, error } = await supabase.functions.invoke(
         'generate-visual',
@@ -145,7 +156,16 @@ export default function Create() {
       }
 
       await saveGenerationOutputs(generation.id, outputs);
-      await updateGenerationStatus(generation.id, 'completed');
+
+      await updateGenerationStatus(
+        generation.id,
+        'completed'
+      );
+
+      await updateProjectStatus(
+        supabaseProject.id,
+        'completed'
+      );
 
       // 5. Giữ project local hiện tại để Results/Dashboard tiếp tục chạy
       const id = supabaseProject.id;

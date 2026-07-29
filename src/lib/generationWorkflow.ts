@@ -8,6 +8,10 @@ import {
   resolveProductImageUrl,
 } from './imageService';
 
+import {
+  updateProjectStatus,
+} from './projectService';
+
 export const DEFAULT_IMAGE_MODEL =
   'black-forest-labs/FLUX.2-pro';
 
@@ -56,6 +60,12 @@ export async function generateVisualVersion(
   let generationId: string | null = null;
 
   try {
+    // Project lifecycle: generation has started.
+    await updateProjectStatus(
+      input.projectId,
+      'generating'
+    );
+
     // 1. Create database generation
     const generation =
       await createGeneration({
@@ -174,6 +184,11 @@ export async function generateVisualVersion(
       'completed'
     );
 
+    await updateProjectStatus(
+      input.projectId,
+      'completed'
+    );
+
     return {
       generationId,
       imageUrls,
@@ -191,6 +206,83 @@ export async function generateVisualVersion(
           statusError
         );
       }
+    }
+
+    try {
+      // A failed new attempt must not destroy the status
+      // of a project that already has successful work.
+      const {
+        data: completedGenerations,
+        error: completedError,
+      } = await supabase
+        .from('generations')
+        .select('id')
+        .eq('project_id', input.projectId)
+        .eq('status', 'completed')
+        .limit(1);
+
+      if (completedError) {
+        throw completedError;
+      }
+
+      if (completedGenerations?.length) {
+        // Check whether this project already has an approved visual.
+        const {
+          data: successfulIds,
+          error: successfulIdsError,
+        } = await supabase
+          .from('generations')
+          .select('id')
+          .eq('project_id', input.projectId)
+          .eq('status', 'completed');
+
+        if (successfulIdsError) {
+          throw successfulIdsError;
+        }
+
+        const generationIds =
+          (successfulIds ?? []).map(
+            (generation) => generation.id
+          );
+
+        let hasApproved = false;
+
+        if (generationIds.length) {
+          const {
+            data: approvedOutput,
+            error: approvedError,
+          } = await supabase
+            .from('generation_outputs')
+            .select('id')
+            .in('generation_id', generationIds)
+            .eq('approved', true)
+            .limit(1)
+            .maybeSingle();
+
+          if (approvedError) {
+            throw approvedError;
+          }
+
+          hasApproved = Boolean(approvedOutput);
+        }
+
+        await updateProjectStatus(
+          input.projectId,
+          hasApproved
+            ? 'approved'
+            : 'completed'
+        );
+      } else {
+        await updateProjectStatus(
+          input.projectId,
+          'failed'
+        );
+      }
+    } catch (projectStatusError) {
+      console.error(
+        'Unable to restore project status after failed generation:',
+        projectStatusError
+      );
     }
 
     throw error;

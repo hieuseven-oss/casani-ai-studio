@@ -9,7 +9,10 @@ import {
   Sparkles,
 } from 'lucide-react';
 
-import { getProjectById } from '../lib/projectService';
+import {
+  getProjectById,
+  updateProjectStatus,
+} from '../lib/projectService';
 import { supabase } from '../lib/supabase';
 
 import {
@@ -303,6 +306,7 @@ export default function Results() {
     outputId: string
   ) {
     if (
+      !project ||
       !generationId ||
       approvingId
     ) {
@@ -359,6 +363,21 @@ export default function Results() {
           `Unable to approve image: ${approveError.message}`
         );
       }
+
+      await updateProjectStatus(
+        project.id,
+        'approved'
+      );
+
+      setProject(
+        (current) =>
+          current
+            ? {
+                ...current,
+                status: 'approved',
+              }
+            : current
+      );
 
       setOutputs(
         (current) =>
