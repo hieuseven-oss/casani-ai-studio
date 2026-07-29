@@ -26,6 +26,11 @@ export type GenerateVisualInput = {
   mood?: string | null;
   ratio?: string | null;
 
+  preset?: string | null;
+  camera?: string | null;
+  customDirection?: string | null;
+
+  // Backward compatibility for Results / older callers.
   customPrompt?: string;
 };
 
@@ -43,7 +48,15 @@ function buildGenerationPrompt(
     input.style || '',
     input.mood || '',
     input.ratio || '',
+    input.preset || '',
+    input.camera || '',
   ];
+
+  if (input.customDirection?.trim()) {
+    parts.push(
+      `DIRECTION: ${input.customDirection.trim()}`
+    );
+  }
 
   if (input.customPrompt?.trim()) {
     parts.push(
@@ -121,6 +134,17 @@ export async function generateVisualVersion(
           ratio:
             input.ratio,
 
+          preset:
+            input.preset,
+
+          camera:
+            input.camera,
+
+          custom_direction:
+            input.customDirection?.trim() ||
+            undefined,
+
+          // Keep legacy Results / Regenerate compatible.
           custom_prompt:
             input.customPrompt?.trim() ||
             undefined,

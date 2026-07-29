@@ -210,16 +210,14 @@ export default function Create() {
         mood,
         ratio,
 
-        customPrompt:
-          [
-            presetPrompt,
-            `Camera direction: ${camera}`,
-            customDirection.trim()
-              ? `User creative direction: ${customDirection.trim()}`
-              : '',
-          ]
-            .filter(Boolean)
-            .join('\n'),
+        preset:
+          presetPrompt || undefined,
+
+        camera,
+
+        customDirection:
+          customDirection.trim() ||
+          undefined,
       });
 
       setStatusText(

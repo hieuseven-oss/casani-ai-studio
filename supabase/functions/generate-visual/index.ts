@@ -1,5 +1,6 @@
 import { serve } from 'https://deno.land/std@0.224.0/http/server.ts';
 import { createClient } from 'npm:@supabase/supabase-js@2';
+import { buildLightingPrompt } from '../_shared/promptEngine.ts';
 
 const cors = {
   'Access-Control-Allow-Origin': '*',
@@ -70,31 +71,21 @@ serve(async (req) => {
       );
     }
 
-    const prompt = `
-Create a premium photorealistic architectural lighting advertising image.
+    const prompt = buildLightingPrompt({
+      name: body.name,
+      space: body.space,
+      style: body.style,
+      mood: body.mood,
+      ratio: body.ratio,
+      preset: body.preset,
+      camera: body.camera,
+      custom_direction:
+        body.custom_direction,
 
-Use the supplied lighting product as the reference product.
-
-Product: ${body.name || 'architectural lighting product'}
-Space: ${body.space || 'luxury interior'}
-Style: ${body.style || 'luxury'}
-Mood: ${body.mood || 'warm'}
-
-Additional creative direction:
-${body.custom_prompt || 'No additional creative direction.'}
-
-Preserve the product identity as faithfully as possible:
-shape, proportions, materials, finish, color, number of bulbs,
-decorative details, cables and mounting structure.
-
-Place the product naturally in a professionally designed interior.
-Realistic architectural lighting, premium materials,
-editorial interior photography, uncluttered luxury composition.
-
-No text.
-No logo.
-No watermark.
-`.trim();
+      // Backward compatibility.
+      custom_prompt:
+        body.custom_prompt,
+    });
 
     // =====================================================
     // 1. GENERATE WITH TOGETHER
