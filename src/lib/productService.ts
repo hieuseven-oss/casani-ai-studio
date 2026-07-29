@@ -68,3 +68,62 @@ export async function createProductWithImage({
     storagePath: filePath,
   };
 }
+
+export async function getProductsFromSupabase() {
+  const { data, error } = await supabase
+    .from('products')
+    .select(`
+      id,
+      sku,
+      name,
+      category,
+      image_url,
+      created_at
+    `)
+    .order('created_at', {
+      ascending: false,
+    });
+
+  if (error) {
+    throw new Error(
+      `Products load failed: ${error.message}`
+    );
+  }
+
+  return data ?? [];
+}
+
+export async function deleteProduct(
+  productId: string,
+  imagePath?: string | null
+) {
+  // Delete DB row first.
+  // If FK constraints block this because the product
+  // is used by projects, surface that error instead
+  // of silently deleting related project history.
+  const { error: deleteError } = await supabase
+    .from('products')
+    .delete()
+    .eq('id', productId);
+
+  if (deleteError) {
+    throw new Error(
+      `Product delete failed: ${deleteError.message}`
+    );
+  }
+
+  // Best-effort Storage cleanup.
+  if (imagePath) {
+    const { error: storageError } =
+      await supabase.storage
+        .from('product-images')
+        .remove([imagePath]);
+
+    if (storageError) {
+      console.warn(
+        'Product row deleted, but image cleanup failed:',
+        storageError.message
+      );
+    }
+  }
+}
