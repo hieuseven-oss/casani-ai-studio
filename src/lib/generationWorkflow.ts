@@ -21,6 +21,12 @@ export type GenerateVisualInput = {
   productName: string;
   productImagePath: string;
 
+  // Optional reference for Results Studio variations.
+  // When provided, generation starts from the selected AI visual.
+  // productImagePath remains the immutable original product reference.
+  referenceImageUrl?: string | null;
+  referenceMode?: 'product' | 'visual';
+
   space?: string | null;
   style?: string | null;
   mood?: string | null;
@@ -102,12 +108,22 @@ export async function generateVisualVersion(
       'processing'
     );
 
-    // 2. Always create a fresh URL
-    // from the original Storage path.
+    // 2. Resolve the generation reference.
+    //
+    // Create / Regenerate:
+    //   original product Storage path -> fresh signed URL
+    //
+    // Results Studio variation:
+    //   selected AI visual signed URL -> use directly
+    //
+    // The original product Storage path remains unchanged.
     const imageUrl =
-      await resolveProductImageUrl(
-        input.productImagePath
-      );
+      input.referenceMode === 'visual' &&
+      input.referenceImageUrl
+        ? input.referenceImageUrl
+        : await resolveProductImageUrl(
+            input.productImagePath
+          );
 
     // 3. Call AI Edge Function
     const {
@@ -118,6 +134,9 @@ export async function generateVisualVersion(
       {
         body: {
           image_url: imageUrl,
+
+          reference_mode:
+            input.referenceMode || 'product',
 
           project_id:
             input.projectId,

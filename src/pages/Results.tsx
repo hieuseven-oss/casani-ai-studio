@@ -103,6 +103,18 @@ export default function Results() {
   const [generatingMore, setGeneratingMore] =
     useState(false);
 
+  // Results Studio V1
+  const [selectedOutputId, setSelectedOutputId] =
+    useState<string | null>(null);
+
+  const [referenceMode, setReferenceMode] =
+    useState<'visual' | 'product'>('visual');
+
+  const [variationType, setVariationType] =
+    useState<
+      'scene' | 'lighting' | 'camera' | 'creative'
+    >('scene');
+
   async function loadOutputs(
     targetGenerationId: string
   ) {
@@ -144,8 +156,18 @@ export default function Results() {
       targetGenerationId
     );
 
-    setOutputs(
-      resolvedOutputs as GenerationOutput[]
+    const nextOutputs =
+      resolvedOutputs as GenerationOutput[];
+
+    setOutputs(nextOutputs);
+
+    const preferred =
+      nextOutputs.find(
+        (output) => output.approved
+      ) || nextOutputs[0];
+
+    setSelectedOutputId(
+      preferred?.id || null
     );
   }
 
@@ -476,7 +498,8 @@ export default function Results() {
   }
 
   async function createNewVersion(
-    instruction?: string
+    instruction?: string,
+    forceOriginalProduct = false
   ) {
     if (!project) {
       throw new Error(
@@ -505,6 +528,28 @@ export default function Results() {
       );
     }
 
+    const selectedOutput =
+      outputs.find(
+        (output) =>
+          output.id === selectedOutputId
+      );
+
+    const useSelectedVisual =
+      !forceOriginalProduct &&
+      referenceMode === 'visual' &&
+      Boolean(selectedOutput?.image_url);
+
+    const variationInstruction =
+      instruction?.trim()
+        ? [
+            `Variation type: ${variationType}.`,
+            useSelectedVisual
+              ? 'Use the supplied AI visual as the scene reference. Preserve everything not explicitly requested to change.'
+              : 'Use the original product as the reference and create a new architectural scene.',
+            instruction.trim(),
+          ].join('\n\n')
+        : undefined;
+
     const result =
       await generateVisualVersion({
         projectId:
@@ -515,6 +560,16 @@ export default function Results() {
 
         productImagePath:
           product.image_url,
+
+        referenceMode:
+          useSelectedVisual
+            ? 'visual'
+            : 'product',
+
+        referenceImageUrl:
+          useSelectedVisual
+            ? selectedOutput?.image_url
+            : undefined,
 
         space:
           project.space,
@@ -529,7 +584,7 @@ export default function Results() {
           project.aspect_ratio,
 
         customPrompt:
-          instruction,
+          variationInstruction,
       });
 
     const newGeneration: Generation = {
@@ -576,7 +631,10 @@ export default function Results() {
     setErrorMsg('');
 
     try {
-      await createNewVersion();
+      await createNewVersion(
+        undefined,
+        true
+      );
     } catch (error) {
       console.error(
         error
@@ -850,68 +908,160 @@ export default function Results() {
           marginBottom: 28,
         }}
       >
-        <div
-          style={{
-            marginBottom: 12,
-          }}
-        >
-          <b>
-            Create a new version
-          </b>
+        <div style={{ marginBottom: 18 }}>
+          <p className="eyebrow">
+            RESULTS STUDIO
+          </p>
+
+          <h2 style={{ marginBottom: 6 }}>
+            Create variation
+          </h2>
 
           <div
             style={{
-              marginTop: 4,
               opacity: 0.65,
               fontSize: 13,
             }}
           >
-            Describe what you want to
-            change. The original product
-            should remain unchanged.
+            Refine a selected visual or start again
+            from the original product.
           </div>
         </div>
 
-        <textarea
-          value={customPrompt}
-          onChange={(event) =>
-            setCustomPrompt(
-              event.target.value
-            )
-          }
-          disabled={busy}
-          placeholder="Ví dụ: Phòng khách trần cao, ánh sáng buổi tối, tường đá tối màu, phong cách luxury hiện đại, giữ nguyên mẫu đèn..."
-          rows={4}
+        <div
           style={{
-            width: '100%',
-            resize: 'vertical',
-            marginBottom: 12,
+            display: 'grid',
+            gap: 18,
           }}
-        />
-
-        <button
-          type="button"
-          className="btn primary"
-          onClick={
-            generateMore
-          }
-          disabled={
-            busy ||
-            !customPrompt.trim()
-          }
         >
-          {generatingMore ? (
-            <>
-              <Loader2 size={16} />
-              Generating new version...
-            </>
-          ) : (
-            <>
-              <Sparkles size={16} />
-              Generate More
-            </>
-          )}
-        </button>
+          <div>
+            <b>Reference</b>
+
+            <div
+              className="chips"
+              style={{ marginTop: 10 }}
+            >
+              <button
+                type="button"
+                className={
+                  referenceMode === 'visual'
+                    ? 'selected'
+                    : ''
+                }
+                disabled={
+                  busy || !selectedOutputId
+                }
+                onClick={() =>
+                  setReferenceMode('visual')
+                }
+              >
+                Selected AI visual
+              </button>
+
+              <button
+                type="button"
+                className={
+                  referenceMode === 'product'
+                    ? 'selected'
+                    : ''
+                }
+                disabled={busy}
+                onClick={() =>
+                  setReferenceMode('product')
+                }
+              >
+                Original product
+              </button>
+            </div>
+          </div>
+
+          <div>
+            <b>Variation type</b>
+
+            <div
+              className="chips"
+              style={{ marginTop: 10 }}
+            >
+              {[
+                ['scene', 'New Scene'],
+                ['lighting', 'Lighting'],
+                ['camera', 'Camera'],
+                ['creative', 'Creative'],
+              ].map(([value, label]) => (
+                <button
+                  type="button"
+                  key={value}
+                  className={
+                    variationType === value
+                      ? 'selected'
+                      : ''
+                  }
+                  disabled={busy}
+                  onClick={() =>
+                    setVariationType(
+                      value as
+                        | 'scene'
+                        | 'lighting'
+                        | 'camera'
+                        | 'creative'
+                    )
+                  }
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div>
+            <b>Creative direction</b>
+
+            <textarea
+              value={customPrompt}
+              onChange={(event) =>
+                setCustomPrompt(
+                  event.target.value
+                )
+              }
+              disabled={busy}
+              placeholder="Ví dụ: Giữ nguyên kiến trúc và mẫu đèn. Chuyển ánh sáng sang hoàng hôn, tăng chiều sâu không gian..."
+              rows={4}
+              style={{
+                width: '100%',
+                resize: 'vertical',
+                marginTop: 10,
+              }}
+            />
+          </div>
+
+          <div>
+            <button
+              type="button"
+              className="btn primary"
+              onClick={generateMore}
+              disabled={
+                busy ||
+                !customPrompt.trim() ||
+                (
+                  referenceMode === 'visual' &&
+                  !selectedOutputId
+                )
+              }
+            >
+              {generatingMore ? (
+                <>
+                  <Loader2 size={16} />
+                  Generating variation...
+                </>
+              ) : (
+                <>
+                  <Sparkles size={16} />
+                  Generate Variation
+                </>
+              )}
+            </button>
+          </div>
+        </div>
       </section>
 
       {errorMsg && (
@@ -962,6 +1112,10 @@ export default function Results() {
                   downloadingId ===
                   output.id;
 
+                const isSelected =
+                  selectedOutputId ===
+                  output.id;
+
                 return (
                   <article
                     className={`result ${
@@ -985,6 +1139,28 @@ export default function Results() {
                         AI visual{' '}
                         {index + 1}
                       </span>
+
+                      <button
+                        type="button"
+                        className={
+                          isSelected
+                            ? 'btn primary'
+                            : 'btn'
+                        }
+                        onClick={() => {
+                          setSelectedOutputId(
+                            output.id
+                          );
+                          setReferenceMode(
+                            'visual'
+                          );
+                        }}
+                        disabled={busy}
+                      >
+                        {isSelected
+                          ? 'Selected'
+                          : 'Select'}
+                      </button>
 
                       <button
                         type="button"
