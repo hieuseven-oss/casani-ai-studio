@@ -1,6 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft, Check, Loader2 } from 'lucide-react';
+import {
+  ArrowLeft,
+  Check,
+  Download,
+  Loader2,
+} from 'lucide-react';
 import { getProjectById } from '../lib/projectService';
 import { supabase } from '../lib/supabase';
 
@@ -39,6 +44,7 @@ export default function Results() {
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
   const [approvingId, setApprovingId] = useState<string | null>(null);
+  const [downloadingId, setDownloadingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) {
@@ -51,7 +57,6 @@ export default function Results() {
 
     async function load() {
       try {
-        // 1. Load project + product
         const data = await getProjectById(projectId);
         const loaded = data as ProjectData;
 
@@ -59,7 +64,6 @@ export default function Results() {
           ? loaded.products[0]
           : loaded.products;
 
-        // 2. Create temporary signed URL for original product image
         if (product?.image_url) {
           const { data: signed, error: signedError } =
             await supabase.storage
@@ -80,7 +84,6 @@ export default function Results() {
 
         setProject(loaded);
 
-        // 3. Find latest completed generation
         const {
           data: generation,
           error: generationError,
@@ -107,7 +110,6 @@ export default function Results() {
 
         setGenerationId(generation.id);
 
-        // 4. Load all AI outputs
         const {
           data: generatedOutputs,
           error: outputsError,
@@ -151,7 +153,6 @@ export default function Results() {
     setErrorMsg('');
 
     try {
-      // 1. Remove approval from every image in this generation
       const { error: resetError } = await supabase
         .from('generation_outputs')
         .update({ approved: false })
@@ -163,7 +164,6 @@ export default function Results() {
         );
       }
 
-      // 2. Approve selected image
       const { error: approveError } = await supabase
         .from('generation_outputs')
         .update({ approved: true })
@@ -176,7 +176,6 @@ export default function Results() {
         );
       }
 
-      // 3. Update UI immediately
       setOutputs((current) =>
         current.map((output) => ({
           ...output,
@@ -196,6 +195,67 @@ export default function Results() {
     }
   }
 
+  async function downloadOutput(
+    output: GenerationOutput,
+    index: number,
+    productName: string
+  ) {
+    if (downloadingId) return;
+
+    setDownloadingId(output.id);
+    setErrorMsg('');
+
+    try {
+      const response = await fetch(output.image_url);
+
+      if (!response.ok) {
+        throw new Error(
+          `Download failed with status ${response.status}`
+        );
+      }
+
+      const blob = await response.blob();
+
+      const extension =
+        blob.type.includes('png')
+          ? 'png'
+          : blob.type.includes('webp')
+          ? 'webp'
+          : 'jpg';
+
+      const safeName = productName
+        .trim()
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '');
+
+      const fileName =
+        `${safeName || 'casani'}-ai-visual-${index + 1}.${extension}`;
+
+      const blobUrl = URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+
+      anchor.href = blobUrl;
+      anchor.download = fileName;
+
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+
+      URL.revokeObjectURL(blobUrl);
+    } catch (error) {
+      console.error(error);
+
+      setErrorMsg(
+        error instanceof Error
+          ? error.message
+          : 'Unable to download image.'
+      );
+    } finally {
+      setDownloadingId(null);
+    }
+  }
+
   if (loading) {
     return <div className="empty">Loading project...</div>;
   }
@@ -212,6 +272,9 @@ export default function Results() {
     ? project.products[0]
     : project.products;
 
+  const productName =
+    product?.name || 'Untitled project';
+
   return (
     <>
       <header className="sectionHead topmini">
@@ -221,7 +284,7 @@ export default function Results() {
             Projects
           </Link>
 
-          <h1>{product?.name || 'Untitled project'}</h1>
+          <h1>{productName}</h1>
 
           <p>
             {project.style || '—'} ·{' '}
@@ -243,7 +306,7 @@ export default function Results() {
           <article className="result">
             <img
               src={product.image_url}
-              alt={product.name || 'Original product'}
+              alt={productName}
             />
 
             <div className="resultActions">
@@ -256,6 +319,7 @@ export default function Results() {
           outputs.map((output, index) => {
             const isApproved = Boolean(output.approved);
             const isApproving = approvingId === output.id;
+            const isDownloading = downloadingId === output.id;
 
             return (
               <article
@@ -298,6 +362,31 @@ export default function Results() {
                       </>
                     ) : (
                       'Approve'
+                    )}
+                  </button>
+
+                  <button
+                    type="button"
+                    className="btn"
+                    onClick={() =>
+                      downloadOutput(
+                        output,
+                        index,
+                        productName
+                      )
+                    }
+                    disabled={Boolean(downloadingId)}
+                  >
+                    {isDownloading ? (
+                      <>
+                        <Loader2 size={16} />
+                        Downloading...
+                      </>
+                    ) : (
+                      <>
+                        <Download size={16} />
+                        Download
+                      </>
                     )}
                   </button>
 
