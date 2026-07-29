@@ -9,7 +9,7 @@ type CreateGenerationInput = {
 export async function createGeneration({
   projectId,
   prompt = '',
-  model = 'black-forest-labs/FLUX.1-schnell',
+  model = 'black-forest-labs/FLUX.2-pro',
 }: CreateGenerationInput) {
   const { data, error } = await supabase
     .from('generations')

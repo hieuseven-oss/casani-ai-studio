@@ -56,11 +56,10 @@ No watermark.
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          model: 'black-forest-labs/FLUX.1-schnell',
+          model: 'black-forest-labs/FLUX.2-pro',
           prompt,
           width: 1024,
           height: 1024,
-          steps: 4,
           n: 4,
           response_format: 'url',
           image_url: body.image_url,
@@ -83,7 +82,7 @@ No watermark.
       JSON.stringify({
         images,
         provider: 'together',
-        model: 'black-forest-labs/FLUX.1-schnell',
+        model: 'black-forest-labs/FLUX.2-pro',
         raw: data,
       }),
       {

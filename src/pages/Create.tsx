@@ -92,7 +92,7 @@ export default function Create() {
       const generation = await createGeneration({
         projectId: supabaseProject.id,
         prompt: `${name} | ${space} | ${style} | ${mood} | ${ratio}`,
-        model: 'black-forest-labs/FLUX.1-schnell',
+        model: 'black-forest-labs/FLUX.2-pro',
       });
 
       // 3. Mirror vào localStorage để các màn hiện tại vẫn hoạt động
