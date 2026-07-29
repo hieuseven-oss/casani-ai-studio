@@ -10,7 +10,12 @@ import {
 } from '../lib/store';
 import { createProductWithImage } from '../lib/productService';
 import { createProject } from '../lib/projectService';
-import { createGeneration } from '../lib/generationService';
+import {
+  createGeneration,
+  saveGenerationOutputs,
+  updateGenerationStatus,
+} from '../lib/generationService';
+import { supabase } from '../lib/supabase';
 
 const spaces = ['Kitchen', 'Dining Room', 'Living Room', 'Bedroom', 'Hotel', 'Villa'];
 const styles = ['Modern', 'Luxury', 'Minimal', 'Contemporary', 'Classic'];
@@ -84,10 +89,10 @@ export default function Create() {
         ratio,
       });
 
-      await createGeneration({
+      const generation = await createGeneration({
         projectId: supabaseProject.id,
         prompt: `${name} | ${space} | ${style} | ${mood} | ${ratio}`,
-        model: 'fal',
+        model: 'black-forest-labs/FLUX.1-schnell',
       });
 
       // 3. Mirror vào localStorage để các màn hiện tại vẫn hoạt động
@@ -103,37 +108,44 @@ export default function Create() {
         },
       ]);
 
-      // 4. Thử gọi AI Edge Function
-      let outputs: string[] = demo;
+      // 4. Gọi AI thật
+      await updateGenerationStatus(generation.id, 'processing');
 
-      try {
-        const res = await fetch('/functions/v1/generate-visual', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
+      const { data, error } = await supabase.functions.invoke(
+        'generate-visual',
+        {
+          body: {
             image_url: previewUrl,
             space,
             style,
             mood,
             ratio,
             name,
-          }),
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-
-          if (Array.isArray(data.images) && data.images.length) {
-            outputs = data.images
-              .map((x: any) => x.url || x)
-              .slice(0, 4);
-          }
+          },
         }
-      } catch {
-        // Giữ demo images cho đến khi Edge Function được deploy.
+      );
+
+      if (error) {
+        await updateGenerationStatus(generation.id, 'failed');
+        throw error;
       }
+
+      console.log('generate-visual response:', data);
+
+      const outputs: string[] = Array.isArray(data?.images)
+        ? data.images
+            .map((x: any) => x?.url || x)
+            .filter(Boolean)
+            .slice(0, 4)
+        : [];
+
+      if (!outputs.length) {
+        await updateGenerationStatus(generation.id, 'failed');
+        throw new Error('AI returned no images');
+      }
+
+      await saveGenerationOutputs(generation.id, outputs);
+      await updateGenerationStatus(generation.id, 'completed');
 
       // 5. Giữ project local hiện tại để Results/Dashboard tiếp tục chạy
       const id = supabaseProject.id;
