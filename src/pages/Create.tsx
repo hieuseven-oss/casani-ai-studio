@@ -18,6 +18,10 @@ import {
   generateVisualVersion,
 } from '../lib/generationWorkflow';
 
+import {
+  creativePresets,
+} from '../lib/creativePresets';
+
 const spaces = [
   'Kitchen',
   'Dining Room',
@@ -50,6 +54,14 @@ const ratios = [
   '16:9',
 ];
 
+const cameras = [
+  'Hero',
+  'Wide Interior',
+  'Eye Level',
+  'Low Angle',
+  'Architectural',
+];
+
 export default function Create() {
   const nav = useNavigate();
 
@@ -76,6 +88,12 @@ export default function Create() {
 
   const [ratio, setRatio] =
     useState('4:5');
+
+  const [camera, setCamera] =
+    useState('Hero');
+
+  const [presetPrompt, setPresetPrompt] =
+    useState('');
 
   const [loading, setLoading] =
     useState(false);
@@ -188,6 +206,14 @@ export default function Create() {
         style,
         mood,
         ratio,
+
+        customPrompt:
+          [
+            presetPrompt,
+            `Camera direction: ${camera}`,
+          ]
+            .filter(Boolean)
+            .join('\n'),
       });
 
       setStatusText(
@@ -357,6 +383,41 @@ export default function Create() {
             set={setRatio}
             disabled={loading}
           />
+
+          <Pick
+            title="Camera"
+            items={cameras}
+            value={camera}
+            set={setCamera}
+            disabled={loading}
+          />
+
+          <div className="pick">
+            <b>Creative preset</b>
+
+            <div className="chips">
+              {creativePresets.map((preset) => (
+                <button
+                  type="button"
+                  key={preset.id}
+                  disabled={loading}
+                  className={
+                    presetPrompt === preset.prompt
+                      ? 'selected'
+                      : ''
+                  }
+                  onClick={() => {
+                    setSpace(preset.space);
+                    setStyle(preset.style);
+                    setMood(preset.mood);
+                    setPresetPrompt(preset.prompt);
+                  }}
+                >
+                  {preset.name}
+                </button>
+              ))}
+            </div>
+          </div>
 
           <button
             className="btn primary wide"
