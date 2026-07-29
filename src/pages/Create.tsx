@@ -95,6 +95,9 @@ export default function Create() {
   const [presetPrompt, setPresetPrompt] =
     useState('');
 
+  const [customDirection, setCustomDirection] =
+    useState('');
+
   const [loading, setLoading] =
     useState(false);
 
@@ -211,6 +214,9 @@ export default function Create() {
           [
             presetPrompt,
             `Camera direction: ${camera}`,
+            customDirection.trim()
+              ? `User creative direction: ${customDirection.trim()}`
+              : '',
           ]
             .filter(Boolean)
             .join('\n'),
@@ -417,6 +423,45 @@ export default function Create() {
                 </button>
               ))}
             </div>
+          </div>
+
+          <div className="pick">
+            <b>Creative direction</b>
+
+            <textarea
+              value={customDirection}
+              onChange={(event) =>
+                setCustomDirection(
+                  event.target.value
+                )
+              }
+              disabled={loading}
+              rows={5}
+              placeholder="Example: Double-height luxury living room, floor-to-ceiling windows, natural stone walls, warm sunset light. Keep the chandelier as the main visual focus."
+              style={{
+                width: '100%',
+                resize: 'vertical',
+                marginTop: 8,
+                padding: 12,
+                borderRadius: 10,
+                border:
+                  '1px solid var(--line, #d8d0c5)',
+                background: 'transparent',
+                font: 'inherit',
+                lineHeight: 1.5,
+                boxSizing: 'border-box',
+              }}
+            />
+
+            <small
+              style={{
+                display: 'block',
+                marginTop: 6,
+              }}
+            >
+              Optional — describe architecture,
+              materials, lighting or composition.
+            </small>
           </div>
 
           <button
