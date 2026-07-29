@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Check, Loader2 } from 'lucide-react';
 import { getProjectById } from '../lib/projectService';
 import { supabase } from '../lib/supabase';
 
@@ -34,8 +34,11 @@ export default function Results() {
 
   const [project, setProject] = useState<ProjectData | null>(null);
   const [outputs, setOutputs] = useState<GenerationOutput[]>([]);
+  const [generationId, setGenerationId] = useState<string | null>(null);
+
   const [loading, setLoading] = useState(true);
   const [errorMsg, setErrorMsg] = useState('');
+  const [approvingId, setApprovingId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!id) {
@@ -48,7 +51,7 @@ export default function Results() {
 
     async function load() {
       try {
-        // 1. Load project + related product
+        // 1. Load project + product
         const data = await getProjectById(projectId);
         const loaded = data as ProjectData;
 
@@ -56,7 +59,7 @@ export default function Results() {
           ? loaded.products[0]
           : loaded.products;
 
-        // 2. Convert product Storage path to signed URL
+        // 2. Create temporary signed URL for original product image
         if (product?.image_url) {
           const { data: signed, error: signedError } =
             await supabase.storage
@@ -77,7 +80,7 @@ export default function Results() {
 
         setProject(loaded);
 
-        // 3. Get latest completed generation for this project
+        // 3. Find latest completed generation
         const {
           data: generation,
           error: generationError,
@@ -96,13 +99,15 @@ export default function Results() {
           );
         }
 
-        // Project exists but has no completed generation yet
         if (!generation) {
+          setGenerationId(null);
           setOutputs([]);
           return;
         }
 
-        // 4. Load generated AI images
+        setGenerationId(generation.id);
+
+        // 4. Load all AI outputs
         const {
           data: generatedOutputs,
           error: outputsError,
@@ -139,20 +144,68 @@ export default function Results() {
     load();
   }, [id]);
 
-  if (loading) {
-    return (
-      <div className="empty">
-        Loading project...
-      </div>
-    );
+  async function approveOutput(outputId: string) {
+    if (!generationId || approvingId) return;
+
+    setApprovingId(outputId);
+    setErrorMsg('');
+
+    try {
+      // 1. Remove approval from every image in this generation
+      const { error: resetError } = await supabase
+        .from('generation_outputs')
+        .update({ approved: false })
+        .eq('generation_id', generationId);
+
+      if (resetError) {
+        throw new Error(
+          `Unable to reset approval: ${resetError.message}`
+        );
+      }
+
+      // 2. Approve selected image
+      const { error: approveError } = await supabase
+        .from('generation_outputs')
+        .update({ approved: true })
+        .eq('id', outputId)
+        .eq('generation_id', generationId);
+
+      if (approveError) {
+        throw new Error(
+          `Unable to approve image: ${approveError.message}`
+        );
+      }
+
+      // 3. Update UI immediately
+      setOutputs((current) =>
+        current.map((output) => ({
+          ...output,
+          approved: output.id === outputId,
+        }))
+      );
+    } catch (error) {
+      console.error(error);
+
+      setErrorMsg(
+        error instanceof Error
+          ? error.message
+          : 'Unable to approve image.'
+      );
+    } finally {
+      setApprovingId(null);
+    }
   }
 
-  if (errorMsg || !project) {
-    return (
-      <div className="empty">
-        {errorMsg || 'Project not found.'}
-      </div>
-    );
+  if (loading) {
+    return <div className="empty">Loading project...</div>;
+  }
+
+  if (errorMsg && !project) {
+    return <div className="empty">{errorMsg}</div>;
+  }
+
+  if (!project) {
+    return <div className="empty">Project not found.</div>;
   }
 
   const product = Array.isArray(project.products)
@@ -168,9 +221,7 @@ export default function Results() {
             Projects
           </Link>
 
-          <h1>
-            {product?.name || 'Untitled project'}
-          </h1>
+          <h1>{product?.name || 'Untitled project'}</h1>
 
           <p>
             {project.style || '—'} ·{' '}
@@ -180,6 +231,12 @@ export default function Results() {
           </p>
         </div>
       </header>
+
+      {errorMsg && (
+        <div className="empty">
+          {errorMsg}
+        </div>
+      )}
 
       <div className="resultGrid">
         {product?.image_url && (
@@ -196,34 +253,65 @@ export default function Results() {
         )}
 
         {outputs.length > 0 ? (
-          outputs.map((output, index) => (
-            <article
-              className="result"
-              key={output.id}
-            >
-              <img
-                src={output.image_url}
-                alt={`AI visual ${index + 1}`}
-              />
+          outputs.map((output, index) => {
+            const isApproved = Boolean(output.approved);
+            const isApproving = approvingId === output.id;
 
-              <div className="resultActions">
-                <span>
-                  AI visual {index + 1}
-                  {output.approved
-                    ? ' · Approved'
-                    : ''}
-                </span>
+            return (
+              <article
+                className={`result ${
+                  isApproved ? 'approvedResult' : ''
+                }`}
+                key={output.id}
+              >
+                <img
+                  src={output.image_url}
+                  alt={`AI visual ${index + 1}`}
+                />
 
-                <a
-                  href={output.image_url}
-                  target="_blank"
-                  rel="noreferrer"
-                >
-                  Open image
-                </a>
-              </div>
-            </article>
-          ))
+                <div className="resultActions">
+                  <span>
+                    AI visual {index + 1}
+                  </span>
+
+                  <button
+                    type="button"
+                    className={
+                      isApproved
+                        ? 'btn primary'
+                        : 'btn'
+                    }
+                    onClick={() => approveOutput(output.id)}
+                    disabled={
+                      Boolean(approvingId) || isApproved
+                    }
+                  >
+                    {isApproving ? (
+                      <>
+                        <Loader2 size={16} />
+                        Saving...
+                      </>
+                    ) : isApproved ? (
+                      <>
+                        <Check size={16} />
+                        Approved
+                      </>
+                    ) : (
+                      'Approve'
+                    )}
+                  </button>
+
+                  <a
+                    href={output.image_url}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open image
+                  </a>
+                </div>
+              </article>
+            );
+          })
         ) : (
           <div className="empty">
             No generated visuals yet
