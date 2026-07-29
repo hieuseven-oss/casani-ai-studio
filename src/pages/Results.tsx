@@ -115,6 +115,13 @@ export default function Results() {
       'scene' | 'lighting' | 'camera' | 'creative'
     >('scene');
 
+  // Compare Mode V1
+  const [compareOutputIds, setCompareOutputIds] =
+    useState<string[]>([]);
+
+  const compareMode =
+    compareOutputIds.length > 0;
+
   async function loadOutputs(
     targetGenerationId: string
   ) {
@@ -319,6 +326,8 @@ export default function Results() {
     setLoadingVersion(true);
     setErrorMsg('');
 
+    setCompareOutputIds([]);
+
     try {
       await loadOutputs(
         targetGenerationId
@@ -356,24 +365,53 @@ export default function Results() {
     setErrorMsg('');
 
     try {
+      // Approval belongs to the project, not only
+      // the currently viewed generation.
       const {
-        error: resetError,
+        data: projectGenerations,
+        error: generationsError,
       } = await supabase
-        .from(
-          'generation_outputs'
-        )
-        .update({
-          approved: false,
-        })
+        .from('generations')
+        .select('id')
         .eq(
-          'generation_id',
-          generationId
+          'project_id',
+          project.id
         );
 
-      if (resetError) {
+      if (generationsError) {
         throw new Error(
-          `Unable to reset approval: ${resetError.message}`
+          `Unable to load project generations: ${generationsError.message}`
         );
+      }
+
+      const projectGenerationIds =
+        (projectGenerations ?? [])
+          .map(
+            (generation) =>
+              generation.id
+          )
+          .filter(Boolean);
+
+      if (projectGenerationIds.length) {
+        const {
+          error: resetError,
+        } = await supabase
+          .from(
+            'generation_outputs'
+          )
+          .update({
+            approved: false,
+          })
+          .in(
+            'generation_id',
+            projectGenerationIds
+          );
+
+        if (resetError) {
+          throw new Error(
+            `Unable to reset approval: ${resetError.message}`
+          );
+        }
       }
 
       const {
@@ -441,6 +479,43 @@ export default function Results() {
         null
       );
     }
+  }
+
+  function toggleCompareOutput(
+    outputId: string
+  ) {
+    setCompareOutputIds(
+      (current) => {
+        if (
+          current.includes(
+            outputId
+          )
+        ) {
+          return current.filter(
+            (id) =>
+              id !== outputId
+          );
+        }
+
+        if (
+          current.length >= 2
+        ) {
+          return [
+            current[1],
+            outputId,
+          ];
+        }
+
+        return [
+          ...current,
+          outputId,
+        ];
+      }
+    );
+  }
+
+  function exitCompareMode() {
+    setCompareOutputIds([]);
   }
 
   async function downloadOutput(
@@ -749,6 +824,12 @@ export default function Results() {
     regenerating ||
     generatingMore;
 
+  const selectedOutput =
+    outputs.find(
+      (output) =>
+        output.id === selectedOutputId
+    ) || null;
+
   return (
     <>
       <header className="sectionHead topmini">
@@ -902,7 +983,189 @@ export default function Results() {
         </section>
       )}
 
+      {compareMode && (
+        <section
+          className="panel"
+          style={{
+            marginBottom: 28,
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent:
+                'space-between',
+              alignItems: 'center',
+              gap: 16,
+              marginBottom: 18,
+            }}
+          >
+            <div>
+              <p className="eyebrow">
+                COMPARE MODE
+              </p>
+
+              <h2>
+                Compare visuals
+              </h2>
+
+              <div
+                style={{
+                  opacity: 0.65,
+                  fontSize: 13,
+                }}
+              >
+                Select up to two visuals
+                from this version.
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="btn"
+              onClick={
+                exitCompareMode
+              }
+              disabled={busy}
+            >
+              Exit Compare
+            </button>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns:
+                'repeat(auto-fit, minmax(280px, 1fr))',
+              gap: 18,
+            }}
+          >
+            {compareOutputIds.map(
+              (
+                compareId,
+                compareIndex
+              ) => {
+                const compareOutput =
+                  outputs.find(
+                    (output) =>
+                      output.id ===
+                      compareId
+                  );
+
+                if (!compareOutput) {
+                  return null;
+                }
+
+                const outputIndex =
+                  outputs.findIndex(
+                    (output) =>
+                      output.id ===
+                      compareId
+                  );
+
+                return (
+                  <article
+                    className="result"
+                    key={compareId}
+                  >
+                    <img
+                      src={
+                        compareOutput.image_url
+                      }
+                      alt={`Compare visual ${
+                        compareIndex + 1
+                      }`}
+                    />
+
+                    <div className="resultActions">
+                      <b>
+                        Visual{' '}
+                        {outputIndex + 1}
+                      </b>
+
+                      <button
+                        type="button"
+                        className="btn"
+                        disabled={busy}
+                        onClick={() => {
+                          setSelectedOutputId(
+                            compareOutput.id
+                          );
+
+                          setReferenceMode(
+                            'visual'
+                          );
+
+                          setCompareOutputIds([]);
+
+                          setTimeout(() => {
+                            document
+                              .getElementById(
+                                'results-studio'
+                              )
+                              ?.scrollIntoView({
+                                behavior: 'smooth',
+                                block: 'start',
+                              });
+                          }, 0);
+                        }}
+                      >
+                        {selectedOutputId ===
+                        compareOutput.id
+                          ? 'Reference selected'
+                          : 'Use as reference'}
+                      </button>
+
+                      <button
+                        type="button"
+                        className={
+                          compareOutput.approved
+                            ? 'btn primary'
+                            : 'btn'
+                        }
+                        disabled={
+                          busy ||
+                          Boolean(
+                            approvingId
+                          ) ||
+                          Boolean(
+                            compareOutput.approved
+                          )
+                        }
+                        onClick={() =>
+                          approveOutput(
+                            compareOutput.id
+                          )
+                        }
+                      >
+                        {compareOutput.approved
+                          ? 'Approved'
+                          : 'Approve'}
+                      </button>
+                    </div>
+                  </article>
+                );
+              }
+            )}
+
+            {compareOutputIds.length <
+              2 && (
+              <div
+                className="empty"
+                style={{
+                  minHeight: 240,
+                }}
+              >
+                Select one more visual
+                below to compare.
+              </div>
+            )}
+          </div>
+        </section>
+      )}
+
       <section
+        id="results-studio"
         className="panel"
         style={{
           marginBottom: 28,
@@ -927,6 +1190,69 @@ export default function Results() {
             from the original product.
           </div>
         </div>
+
+        {referenceMode === 'visual' &&
+          selectedOutput && (
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 14,
+                marginBottom: 20,
+                padding: 12,
+                border:
+                  '1px solid var(--line, #d8d0c5)',
+                borderRadius: 12,
+              }}
+            >
+              <img
+                src={
+                  selectedOutput.image_url
+                }
+                alt="Selected reference"
+                style={{
+                  width: 92,
+                  height: 92,
+                  objectFit: 'cover',
+                  borderRadius: 8,
+                  flexShrink: 0,
+                }}
+              />
+
+              <div>
+                <b>
+                  Selected AI reference
+                </b>
+
+                <div
+                  style={{
+                    fontSize: 13,
+                    opacity: 0.65,
+                    marginTop: 4,
+                  }}
+                >
+                  The next variation will
+                  start from this visual.
+                </div>
+
+                <button
+                  type="button"
+                  className="btn"
+                  style={{
+                    marginTop: 8,
+                  }}
+                  disabled={busy}
+                  onClick={() =>
+                    setReferenceMode(
+                      'product'
+                    )
+                  }
+                >
+                  Use original product instead
+                </button>
+              </div>
+            </div>
+          )}
 
         <div
           style={{
@@ -1116,6 +1442,11 @@ export default function Results() {
                   selectedOutputId ===
                   output.id;
 
+                const isCompared =
+                  compareOutputIds.includes(
+                    output.id
+                  );
+
                 return (
                   <article
                     className={`result ${
@@ -1139,6 +1470,25 @@ export default function Results() {
                         AI visual{' '}
                         {index + 1}
                       </span>
+
+                      <button
+                        type="button"
+                        className={
+                          isCompared
+                            ? 'btn primary'
+                            : 'btn'
+                        }
+                        onClick={() =>
+                          toggleCompareOutput(
+                            output.id
+                          )
+                        }
+                        disabled={busy}
+                      >
+                        {isCompared
+                          ? 'Comparing'
+                          : 'Compare'}
+                      </button>
 
                       <button
                         type="button"
