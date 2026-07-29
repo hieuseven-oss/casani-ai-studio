@@ -6,6 +6,7 @@ import {
   Download,
   Loader2,
   RefreshCw,
+  Sparkles,
 } from 'lucide-react';
 import { getProjectById } from '../lib/projectService';
 import {
@@ -63,6 +64,9 @@ export default function Results() {
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState(false);
+
+  const [customPrompt, setCustomPrompt] = useState('');
+  const [generatingMore, setGeneratingMore] = useState(false);
 
   async function loadOutputs(targetGenerationId: string) {
     const {
@@ -471,6 +475,161 @@ export default function Results() {
     }
   }
 
+  async function generateMore() {
+    if (
+      !project ||
+      generatingMore ||
+      regenerating
+    ) {
+      return;
+    }
+
+    const instruction = customPrompt.trim();
+
+    if (!instruction) {
+      setErrorMsg(
+        'Hãy nhập yêu cầu cho phiên bản mới.'
+      );
+      return;
+    }
+
+    const product = Array.isArray(project.products)
+      ? project.products[0]
+      : project.products;
+
+    if (!product?.image_url) {
+      setErrorMsg(
+        'Original product image is missing.'
+      );
+      return;
+    }
+
+    setGeneratingMore(true);
+    setErrorMsg('');
+
+    let newGenerationId: string | null = null;
+
+    try {
+      const generation =
+        await createGeneration({
+          projectId: project.id,
+          prompt:
+            `${product.name} | ` +
+            `${project.space || ''} | ` +
+            `${project.style || ''} | ` +
+            `${project.mood || ''} | ` +
+            `${project.aspect_ratio || ''} | ` +
+            `CUSTOM: ${instruction}`,
+          model:
+            'black-forest-labs/FLUX.2-pro',
+        });
+
+      const createdGenerationId =
+        generation.id as string;
+
+      newGenerationId =
+        createdGenerationId;
+
+      await updateGenerationStatus(
+        createdGenerationId,
+        'processing'
+      );
+
+      const {
+        data,
+        error,
+      } = await supabase.functions.invoke(
+        'generate-visual',
+        {
+          body: {
+            image_url: product.image_url,
+            space: project.space,
+            style: project.style,
+            mood: project.mood,
+            ratio: project.aspect_ratio,
+            name: product.name,
+            custom_prompt: instruction,
+          },
+        }
+      );
+
+      if (error) {
+        throw error;
+      }
+
+      const imageUrls: string[] =
+        Array.isArray(data?.images)
+          ? data.images
+              .map(
+                (item: any) =>
+                  item?.url || item
+              )
+              .filter(Boolean)
+              .slice(0, 4)
+          : [];
+
+      if (!imageUrls.length) {
+        throw new Error(
+          'AI returned no images.'
+        );
+      }
+
+      await saveGenerationOutputs(
+        createdGenerationId,
+        imageUrls
+      );
+
+      await updateGenerationStatus(
+        createdGenerationId,
+        'completed'
+      );
+
+      const newGeneration: Generation = {
+        id: createdGenerationId,
+        status: 'completed',
+        model:
+          'black-forest-labs/FLUX.2-pro',
+        created_at:
+          new Date().toISOString(),
+      };
+
+      setGenerations((current) => [
+        ...current,
+        newGeneration,
+      ]);
+
+      await loadOutputs(
+        createdGenerationId
+      );
+
+      setCustomPrompt('');
+    } catch (error) {
+      console.error(error);
+
+      if (newGenerationId) {
+        try {
+          await updateGenerationStatus(
+            newGenerationId,
+            'failed'
+          );
+        } catch (statusError) {
+          console.error(
+            'Unable to mark generation failed:',
+            statusError
+          );
+        }
+      }
+
+      setErrorMsg(
+        error instanceof Error
+          ? error.message
+          : 'Unable to generate new version.'
+      );
+    } finally {
+      setGeneratingMore(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="empty">
@@ -650,6 +809,77 @@ export default function Results() {
           </div>
         </section>
       )}
+
+      <section
+        className="panel"
+        style={{
+          marginBottom: 28,
+        }}
+      >
+        <div
+          style={{
+            marginBottom: 12,
+          }}
+        >
+          <b>
+            Create a new version
+          </b>
+
+          <div
+            style={{
+              marginTop: 4,
+              opacity: 0.65,
+              fontSize: 13,
+            }}
+          >
+            Describe what you want to change.
+            The original product should remain unchanged.
+          </div>
+        </div>
+
+        <textarea
+          value={customPrompt}
+          onChange={(event) =>
+            setCustomPrompt(
+              event.target.value
+            )
+          }
+          disabled={
+            generatingMore ||
+            regenerating
+          }
+          placeholder="Ví dụ: Phòng khách trần cao, ánh sáng buổi tối, tường đá tối màu, phong cách luxury hiện đại, giữ nguyên mẫu đèn..."
+          rows={4}
+          style={{
+            width: '100%',
+            resize: 'vertical',
+            marginBottom: 12,
+          }}
+        />
+
+        <button
+          type="button"
+          className="btn primary"
+          onClick={generateMore}
+          disabled={
+            generatingMore ||
+            regenerating ||
+            !customPrompt.trim()
+          }
+        >
+          {generatingMore ? (
+            <>
+              <Loader2 size={16} />
+              Generating new version...
+            </>
+          ) : (
+            <>
+              <Sparkles size={16} />
+              Generate More
+            </>
+          )}
+        </button>
+      </section>
 
       {errorMsg && (
         <div className="empty">

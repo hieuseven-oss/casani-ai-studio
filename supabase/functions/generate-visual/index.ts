@@ -34,6 +34,9 @@ Space: ${body.space || 'luxury interior'}
 Style: ${body.style || 'luxury'}
 Mood: ${body.mood || 'warm'}
 
+Additional creative direction:
+${body.custom_prompt || 'No additional creative direction.'}
+
 Preserve the product identity as faithfully as possible:
 shape, proportions, materials, finish, color, number of bulbs,
 decorative details, cables and mounting structure.
