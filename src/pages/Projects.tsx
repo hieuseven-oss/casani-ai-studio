@@ -10,6 +10,7 @@ type ProjectCard = {
   imageUrl: string;
   space: string;
   mood: string;
+  approved: boolean;
 };
 
 export default function Projects() {
@@ -24,8 +25,9 @@ export default function Projects() {
         const mapped: ProjectCard[] = await Promise.all(
           data.map(async (p: any) => {
             let imageUrl = '';
+            let approved = false;
 
-            // 1. Lấy generation completed mới nhất của project
+            // 1. Get latest completed generation
             const {
               data: generation,
               error: generationError,
@@ -40,35 +42,61 @@ export default function Projects() {
 
             if (generationError) {
               console.warn(
-                'Generation load failed for project:',
+                'Generation load failed:',
                 p.id,
                 generationError.message
               );
             }
 
-            // 2. Lấy output đầu tiên làm thumbnail
             if (generation?.id) {
+              // 2. Prefer approved output
               const {
-                data: output,
-                error: outputError,
+                data: approvedOutput,
+                error: approvedError,
               } = await supabase
                 .from('generation_outputs')
-                .select('image_url, created_at')
+                .select('image_url')
                 .eq('generation_id', generation.id)
-                .order('created_at', { ascending: true })
+                .eq('approved', true)
                 .limit(1)
                 .maybeSingle();
 
-              if (outputError) {
+              if (approvedError) {
                 console.warn(
-                  'Output load failed for project:',
+                  'Approved output load failed:',
                   p.id,
-                  outputError.message
+                  approvedError.message
                 );
               }
 
-              if (output?.image_url) {
-                imageUrl = output.image_url;
+              if (approvedOutput?.image_url) {
+                imageUrl = approvedOutput.image_url;
+                approved = true;
+              } else {
+                // 3. No approved image yet:
+                // use first generated visual
+                const {
+                  data: firstOutput,
+                  error: outputError,
+                } = await supabase
+                  .from('generation_outputs')
+                  .select('image_url, created_at')
+                  .eq('generation_id', generation.id)
+                  .order('created_at', { ascending: true })
+                  .limit(1)
+                  .maybeSingle();
+
+                if (outputError) {
+                  console.warn(
+                    'Output load failed:',
+                    p.id,
+                    outputError.message
+                  );
+                }
+
+                if (firstOutput?.image_url) {
+                  imageUrl = firstOutput.image_url;
+                }
               }
             }
 
@@ -78,19 +106,24 @@ export default function Projects() {
 
             return {
               id: p.id,
-              productName: product?.name || 'Untitled project',
+              productName:
+                product?.name || 'Untitled project',
               imageUrl,
               space: p.space || '',
               mood: p.mood || '',
+              approved,
             };
           })
         );
 
         setProjects(mapped);
       } catch (error) {
-        console.error('Supabase projects load failed:', error);
+        console.error(
+          'Supabase projects load failed:',
+          error
+        );
 
-        // Fallback local cũ nếu Supabase lỗi hoàn toàn
+        // Temporary fallback for old local projects
         const local = getProjects()
           .slice()
           .reverse()
@@ -100,6 +133,7 @@ export default function Projects() {
             imageUrl: p.outputs?.[0] || '',
             space: p.space,
             mood: p.mood,
+            approved: false,
           }));
 
         setProjects(local);
@@ -116,7 +150,9 @@ export default function Projects() {
       <div className="pageTitle">
         <p className="eyebrow">HISTORY</p>
         <h1>Projects</h1>
-        <p>Every generated campaign stays organized here.</p>
+        <p>
+          Every generated campaign stays organized here.
+        </p>
       </div>
 
       {loading ? (
@@ -147,8 +183,16 @@ export default function Projects() {
 
                 <span>
                   {p.space}
-                  {p.mood ? ' · ' + p.mood : ''}
+                  {p.mood
+                    ? ' · ' + p.mood
+                    : ''}
                 </span>
+
+                {p.approved && (
+                  <small>
+                    ✓ Approved visual
+                  </small>
+                )}
               </div>
             </Link>
           ))}
