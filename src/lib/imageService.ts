@@ -2,20 +2,13 @@ import { supabase } from './supabase';
 
 const PRODUCT_BUCKET = 'product-images';
 
-/**
- * Tạo URL tạm thời để trình duyệt hoặc AI provider
- * truy cập ảnh sản phẩm trong private Storage.
- */
 export async function createProductSignedUrl(
   storagePath: string,
   expiresInSeconds = 60 * 60
 ) {
   const { data, error } = await supabase.storage
     .from(PRODUCT_BUCKET)
-    .createSignedUrl(
-      storagePath,
-      expiresInSeconds
-    );
+    .createSignedUrl(storagePath, expiresInSeconds);
 
   if (error) {
     throw new Error(
@@ -32,10 +25,6 @@ export async function createProductSignedUrl(
   return data.signedUrl;
 }
 
-/**
- * Trường hợp dữ liệu đã là URL http/https thì giữ nguyên.
- * Nếu là Storage path thì tạo signed URL mới.
- */
 export async function resolveProductImageUrl(
   imagePathOrUrl: string | null | undefined
 ) {
@@ -50,40 +39,105 @@ export async function resolveProductImageUrl(
     return imagePathOrUrl;
   }
 
-  return createProductSignedUrl(
-    imagePathOrUrl
-  );
+  return createProductSignedUrl(imagePathOrUrl);
 }
 
-/**
- * Download URL bên ngoài về máy người dùng.
- */
+function base64ToBlob(
+  base64: string,
+  contentType: string
+) {
+  const binary = atob(base64);
+
+  const bytes = new Uint8Array(binary.length);
+
+  for (let i = 0; i < binary.length; i++) {
+    bytes[i] = binary.charCodeAt(i);
+  }
+
+  return new Blob([bytes], {
+    type: contentType,
+  });
+}
+
 export async function downloadRemoteImage(
   imageUrl: string,
   fileName: string
 ) {
-  const response = await fetch(imageUrl);
+  const { data, error } =
+    await supabase.functions.invoke(
+      'download-visual',
+      {
+        body: {
+          image_url: imageUrl,
+        },
+      }
+    );
 
-  if (!response.ok) {
+  if (error) {
+    let detail = error.message;
+
+    try {
+      const context = (error as any)?.context;
+
+      if (context instanceof Response) {
+        const text = await context.text();
+
+        if (text) {
+          try {
+            const parsed = JSON.parse(text);
+
+            detail =
+              parsed?.error ||
+              parsed?.message ||
+              text;
+          } catch {
+            detail = text;
+          }
+        }
+      }
+    } catch (contextError) {
+      console.error(
+        'Unable to read download service error:',
+        contextError
+      );
+    }
+
     throw new Error(
-      `Download failed with status ${response.status}`
+      `Download service failed: ${detail}`
     );
   }
 
-  const blob = await response.blob();
-
-  let finalName = fileName;
-
-  if (!/\.(png|jpg|jpeg|webp)$/i.test(finalName)) {
-    const extension =
-      blob.type.includes('png')
-        ? 'png'
-        : blob.type.includes('webp')
-        ? 'webp'
-        : 'jpg';
-
-    finalName += `.${extension}`;
+  if (data?.error) {
+    throw new Error(
+      `Download service failed: ${String(data.error)}`
+    );
   }
+
+  if (!data?.base64) {
+    throw new Error(
+      'Download service returned no image.'
+    );
+  }
+
+  const contentType =
+    data.contentType || 'image/jpeg';
+
+  const blob = base64ToBlob(
+    data.base64,
+    contentType
+  );
+
+  const extension =
+    contentType.includes('png')
+      ? 'png'
+      : contentType.includes('webp')
+      ? 'webp'
+      : 'jpg';
+
+  const finalName =
+    /\.(png|jpg|jpeg|webp)$/i.test(fileName)
+      ? fileName
+      : `${fileName}.${extension}`;
 
   const blobUrl =
     URL.createObjectURL(blob);
@@ -98,7 +152,9 @@ export async function downloadRemoteImage(
   anchor.click();
   anchor.remove();
 
-  URL.revokeObjectURL(blobUrl);
+  setTimeout(() => {
+    URL.revokeObjectURL(blobUrl);
+  }, 1000);
 }
 
 export function makeSafeFileName(
