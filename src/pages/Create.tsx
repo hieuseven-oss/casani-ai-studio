@@ -62,6 +62,29 @@ const cameras = [
   'Architectural',
 ];
 
+const lightingOptions = [
+  'Warm Ambient',
+  'Natural Daylight',
+  'Golden Hour',
+  'Dramatic',
+  'Soft Editorial',
+];
+
+const compositionOptions = [
+  'Product Hero',
+  'Balanced Interior',
+  'Wide Architecture',
+  'Close Editorial',
+];
+
+const materialOptions = [
+  'Auto',
+  'Stone & Wood',
+  'Marble & Brass',
+  'Warm Minimal',
+  'Dark Luxury',
+];
+
 export default function Create() {
   const nav = useNavigate();
 
@@ -91,6 +114,15 @@ export default function Create() {
 
   const [camera, setCamera] =
     useState('Hero');
+
+  const [lighting, setLighting] =
+    useState('Warm Ambient');
+
+  const [composition, setComposition] =
+    useState('Product Hero');
+
+  const [materials, setMaterials] =
+    useState('Auto');
 
   const [presetPrompt, setPresetPrompt] =
     useState('');
@@ -214,6 +246,9 @@ export default function Create() {
           presetPrompt || undefined,
 
         camera,
+        lighting,
+        composition,
+        materials,
 
         customDirection:
           customDirection.trim() ||
@@ -393,6 +428,30 @@ export default function Create() {
             items={cameras}
             value={camera}
             set={setCamera}
+            disabled={loading}
+          />
+
+          <Pick
+            title="Lighting"
+            items={lightingOptions}
+            value={lighting}
+            set={setLighting}
+            disabled={loading}
+          />
+
+          <Pick
+            title="Composition"
+            items={compositionOptions}
+            value={composition}
+            set={setComposition}
+            disabled={loading}
+          />
+
+          <Pick
+            title="Materials"
+            items={materialOptions}
+            value={materials}
+            set={setMaterials}
             disabled={loading}
           />
 

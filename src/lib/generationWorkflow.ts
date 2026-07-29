@@ -28,6 +28,9 @@ export type GenerateVisualInput = {
 
   preset?: string | null;
   camera?: string | null;
+  lighting?: string | null;
+  composition?: string | null;
+  materials?: string | null;
   customDirection?: string | null;
 
   // Backward compatibility for Results / older callers.
@@ -50,6 +53,9 @@ function buildGenerationPrompt(
     input.ratio || '',
     input.preset || '',
     input.camera || '',
+    input.lighting || '',
+    input.composition || '',
+    input.materials || '',
   ];
 
   if (input.customDirection?.trim()) {
@@ -139,6 +145,15 @@ export async function generateVisualVersion(
 
           camera:
             input.camera,
+
+          lighting:
+            input.lighting,
+
+          composition:
+            input.composition,
+
+          materials:
+            input.materials,
 
           custom_direction:
             input.customDirection?.trim() ||

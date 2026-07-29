@@ -79,6 +79,9 @@ serve(async (req) => {
       ratio: body.ratio,
       preset: body.preset,
       camera: body.camera,
+      lighting: body.lighting,
+      composition: body.composition,
+      materials: body.materials,
       custom_direction:
         body.custom_direction,
 

@@ -4,6 +4,15 @@ export type LightingPromptInput = {
   style?: string;
   mood?: string;
   ratio?: string;
+
+  preset?: string;
+  camera?: string;
+  lighting?: string;
+  composition?: string;
+  materials?: string;
+  custom_direction?: string;
+
+  // Backward compatibility for Results / older generations.
   custom_prompt?: string;
 };
 
@@ -11,7 +20,7 @@ const SPACE_PROMPTS: Record<string, string> = {
   Kitchen:
     'a sophisticated high-end kitchen with premium cabinetry, stone surfaces and refined architectural detailing',
   'Dining Room':
-    'an elegant luxury dining room with a carefully composed dining setting and strong visual focus on the lighting fixture',
+    'an elegant luxury dining room with a carefully composed dining setting',
   'Living Room':
     'a spacious premium living room with sophisticated furniture, refined materials and architectural depth',
   Bedroom:
@@ -24,28 +33,65 @@ const SPACE_PROMPTS: Record<string, string> = {
 
 const STYLE_PROMPTS: Record<string, string> = {
   Modern:
-    'modern architecture, clean geometry, refined contemporary materials',
+    'modern architecture, clean geometry and refined contemporary materials',
   Luxury:
-    'high-end luxury interior design, exceptional materials, sophisticated detailing',
+    'high-end luxury interior design, exceptional materials and sophisticated detailing',
   Minimal:
-    'minimal architecture, restrained composition, clean surfaces and carefully controlled details',
+    'minimal architecture, restrained composition and clean surfaces',
   Contemporary:
-    'contemporary luxury architecture, current premium interior design, sophisticated material palette',
+    'contemporary luxury architecture with a sophisticated material palette',
   Classic:
-    'refined classic architecture, elegant proportions, timeless luxury detailing',
+    'refined classic architecture, elegant proportions and timeless luxury detailing',
 };
 
 const MOOD_PROMPTS: Record<string, string> = {
   Warm:
-    'warm ambient illumination, inviting atmosphere, realistic warm light',
+    'warm, inviting and sophisticated atmosphere',
   Elegant:
-    'elegant restrained atmosphere, sophisticated lighting and premium visual balance',
+    'elegant restrained atmosphere with premium visual balance',
   Dramatic:
-    'dramatic architectural lighting, controlled contrast and cinematic depth',
+    'dramatic sophisticated atmosphere with controlled contrast',
   Natural:
-    'natural daylight combined with realistic architectural illumination',
+    'natural, calm and believable atmosphere',
   Premium:
-    'premium editorial atmosphere, polished architectural photography and sophisticated lighting',
+    'premium editorial atmosphere suitable for a luxury advertising campaign',
+};
+
+const LIGHTING_PROMPTS: Record<string, string> = {
+  'Warm Ambient':
+    'warm architectural ambient light, soft practical illumination and realistic warm highlights',
+  'Natural Daylight':
+    'soft natural daylight, believable window illumination and neutral material rendering',
+  'Golden Hour':
+    'late-afternoon golden-hour sunlight with warm directional illumination and refined long shadows',
+  Dramatic:
+    'controlled dramatic architectural illumination with deeper contrast while preserving product detail',
+  'Soft Editorial':
+    'soft diffused editorial lighting with controlled highlights and premium interior-photography quality',
+};
+
+const COMPOSITION_PROMPTS: Record<string, string> = {
+  'Product Hero':
+    'make the reference lighting fixture the unmistakable hero of the image',
+  'Balanced Interior':
+    'balance the reference fixture with enough surrounding architecture to communicate the complete interior',
+  'Wide Architecture':
+    'use a wider architectural composition showing spatial scale while keeping the reference fixture clearly identifiable',
+  'Close Editorial':
+    'use a tighter premium editorial composition emphasizing product detail, materials and craftsmanship',
+};
+
+const MATERIAL_PROMPTS: Record<string, string> = {
+  Auto:
+    'select premium interior materials naturally appropriate for the selected architecture',
+  'Stone & Wood':
+    'use sophisticated natural stone and premium timber as the dominant architectural material palette',
+  'Marble & Brass':
+    'use refined marble surfaces and restrained brass architectural accents',
+  'Warm Minimal':
+    'use warm neutral plaster, light natural stone and subtle timber with minimal material transitions',
+  'Dark Luxury':
+    'use dark natural stone, deep timber tones and sophisticated luxury finishes with controlled reflections',
 };
 
 export function buildLightingPrompt(
@@ -68,9 +114,28 @@ export function buildLightingPrompt(
   const mood =
     MOOD_PROMPTS[input.mood || ''] ||
     input.mood ||
-    'warm premium architectural lighting';
+    'premium architectural atmosphere';
 
-  const custom =
+  const lighting =
+    LIGHTING_PROMPTS[input.lighting || ''] ||
+    input.lighting ||
+    'physically believable premium architectural illumination';
+
+  const composition =
+    COMPOSITION_PROMPTS[input.composition || ''] ||
+    input.composition ||
+    'make the reference lighting fixture the visual hero';
+
+  const materials =
+    MATERIAL_PROMPTS[input.materials || ''] ||
+    input.materials ||
+    MATERIAL_PROMPTS.Auto;
+
+  const preset = input.preset?.trim();
+  const camera = input.camera?.trim();
+  const customDirection =
+    input.custom_direction?.trim();
+  const legacyCustom =
     input.custom_prompt?.trim();
 
   return `
@@ -83,27 +148,28 @@ Product:
 ${product}
 
 PRODUCT IDENTITY LOCK — HIGHEST PRIORITY
-The lighting fixture itself must remain visually faithful to the supplied reference image.
+The reference lighting fixture must remain visually faithful to the supplied product image.
 
-Preserve:
+Preserve exactly:
 - overall silhouette
-- original proportions and scale relationships
-- number and arrangement of lighting elements
-- metal structure and finish
-- material colors
-- crystal or glass configuration
+- geometry and proportions
+- number and arrangement of arms, bulbs and lighting elements
+- crystal and glass count, placement, shape and transparency
+- metal structure, finish and original color
 - decorative components
 - canopy and ceiling mount
 - suspension cables, chains or rods
 - recognizable construction details
 
+Crystal and clear glass must remain optically transparent when transparent in the reference.
+Do not tint clear crystal gold, amber, bronze or opaque.
+Do not recolor the product to match the surrounding interior palette.
+
 Do not redesign the fixture.
 Do not replace it with another fixture.
-Do not add or remove arms, bulbs, crystals, decorative pieces or structural components.
+Do not add or remove components.
 Do not simplify its construction.
-Do not alter its material identity.
-Do not change its fundamental proportions.
-
+Do not alter its fundamental proportions.
 Only create or change the architectural environment surrounding the product.
 
 ARCHITECTURAL ENVIRONMENT
@@ -116,37 +182,56 @@ ${style}
 Atmosphere:
 ${mood}
 
-Create a believable professionally designed interior appropriate for this fixture.
+${preset ? `SCENE PRESET:
+${preset}` : ''}
 
-LIGHTING
-The fixture must appear naturally installed and operational.
-Produce physically believable illumination from the fixture.
-Use realistic indirect architectural lighting and natural light where appropriate.
-Preserve highlight detail in metal, crystal and glass.
-Avoid blown highlights.
+MATERIAL DIRECTION
+${materials}
+
+PHOTOGRAPHY
+Camera direction:
+${camera || 'Hero architectural product photography'}
+
+Camera direction controls viewpoint and framing only.
+It must not change the physical design of the reference fixture.
 
 COMPOSITION
-Make the product the visual hero.
-Use premium architectural photography composition.
+${composition}
+
 Maintain realistic perspective and believable scale.
 Keep the scene sophisticated and uncluttered.
-Show enough architecture to communicate the quality of the space without distracting from the fixture.
+
+LIGHTING
+${lighting}
+
+The fixture must appear naturally installed and operational.
+Use physically believable light behavior.
+Preserve highlight detail in metal, crystal and glass.
+Transparent crystal should show realistic refraction, internal reflections and background transmission.
+Avoid blown highlights and opaque plastic-looking crystal.
+
+OUTPUT
+Target aspect ratio:
+${input.ratio || '4:5'}
 
 IMAGE QUALITY
 Photorealistic.
-High-end interior photography.
-Realistic materials.
-Accurate reflections.
+High-end architectural interior photography.
+Premium advertising quality.
+Realistic materials and reflections.
 Natural shadows.
 Fine product detail.
-Premium advertising quality.
 No artificial CGI appearance.
 
-${custom ? `CREATIVE DIRECTION\n${custom}` : ''}
+${customDirection ? `USER CREATIVE DIRECTION
+${customDirection}` : ''}
 
-Do not add text.
-Do not add logos.
-Do not add watermarks.
+${legacyCustom ? `ADDITIONAL CREATIVE DIRECTION
+${legacyCustom}` : ''}
+
+No text.
+No logos.
+No watermark.
 Do not add unrelated lighting fixtures that compete with the reference product.
 `.trim();
 }
