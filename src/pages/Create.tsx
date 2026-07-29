@@ -1,233 +1,289 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Upload, Image as ImageIcon, Sparkles } from 'lucide-react';
 import {
-  getProducts,
-  saveProducts,
-  getProjects,
-  saveProjects,
-  uid,
-} from '../lib/store';
-import { createProductWithImage } from '../lib/productService';
+  Upload,
+  Image as ImageIcon,
+  Sparkles,
+} from 'lucide-react';
+
+import {
+  createProductWithImage,
+} from '../lib/productService';
+
 import {
   createProject,
-  updateProjectStatus,
 } from '../lib/projectService';
+
 import {
-  createGeneration,
-  saveGenerationOutputs,
-  updateGenerationStatus,
-} from '../lib/generationService';
-import { supabase } from '../lib/supabase';
+  generateVisualVersion,
+} from '../lib/generationWorkflow';
 
-const spaces = ['Kitchen', 'Dining Room', 'Living Room', 'Bedroom', 'Hotel', 'Villa'];
-const styles = ['Modern', 'Luxury', 'Minimal', 'Contemporary', 'Classic'];
-const moods = ['Warm', 'Elegant', 'Dramatic', 'Natural', 'Premium'];
-const ratios = ['1:1', '4:5', '9:16', '16:9'];
+const spaces = [
+  'Kitchen',
+  'Dining Room',
+  'Living Room',
+  'Bedroom',
+  'Hotel',
+  'Villa',
+];
 
-const demo = [
-  'https://images.unsplash.com/photo-1600607687920-4e2a09cf159d?auto=format&fit=crop&w=1200&q=85',
-  'https://images.unsplash.com/photo-1600585154340-be6161a56a0c?auto=format&fit=crop&w=1200&q=85',
-  'https://images.unsplash.com/photo-1600566753190-17f0baa2a6c3?auto=format&fit=crop&w=1200&q=85',
-  'https://images.unsplash.com/photo-1600607688969-a5bfcd646154?auto=format&fit=crop&w=1200&q=85',
+const styles = [
+  'Modern',
+  'Luxury',
+  'Minimal',
+  'Contemporary',
+  'Classic',
+];
+
+const moods = [
+  'Warm',
+  'Elegant',
+  'Dramatic',
+  'Natural',
+  'Premium',
+];
+
+const ratios = [
+  '1:1',
+  '4:5',
+  '9:16',
+  '16:9',
 ];
 
 export default function Create() {
   const nav = useNavigate();
 
-  const [img, setImg] = useState('');
-  const [file, setFile] = useState<File | null>(null);
+  const [img, setImg] =
+    useState('');
 
-  const [sku, setSku] = useState('');
-  const [name, setName] = useState('');
-  const [space, setSpace] = useState('Kitchen');
-  const [style, setStyle] = useState('Luxury');
-  const [mood, setMood] = useState('Warm');
-  const [ratio, setRatio] = useState('4:5');
-  const [loading, setLoading] = useState(false);
+  const [file, setFile] =
+    useState<File | null>(null);
 
-  function upload(e: React.ChangeEvent<HTMLInputElement>) {
-    const selectedFile = e.target.files?.[0];
+  const [sku, setSku] =
+    useState('');
 
-    if (!selectedFile) return;
+  const [name, setName] =
+    useState('');
+
+  const [space, setSpace] =
+    useState('Kitchen');
+
+  const [style, setStyle] =
+    useState('Luxury');
+
+  const [mood, setMood] =
+    useState('Warm');
+
+  const [ratio, setRatio] =
+    useState('4:5');
+
+  const [loading, setLoading] =
+    useState(false);
+
+  const [statusText, setStatusText] =
+    useState('');
+
+  function upload(
+    e: React.ChangeEvent<HTMLInputElement>
+  ) {
+    const selectedFile =
+      e.target.files?.[0];
+
+    if (!selectedFile) {
+      return;
+    }
 
     setFile(selectedFile);
 
-    const reader = new FileReader();
+    const reader =
+      new FileReader();
 
     reader.onload = () => {
-      setImg(String(reader.result));
+      setImg(
+        String(reader.result)
+      );
     };
 
-    reader.readAsDataURL(selectedFile);
+    reader.readAsDataURL(
+      selectedFile
+    );
   }
 
   async function generate() {
-    if (!file || !img || !name.trim()) {
-      alert('Hãy tải ảnh và nhập tên sản phẩm.');
+    if (
+      !file ||
+      !img ||
+      !name.trim()
+    ) {
+      alert(
+        'Hãy tải ảnh và nhập tên sản phẩm.'
+      );
+
       return;
     }
 
     setLoading(true);
+    setStatusText(
+      'Saving product...'
+    );
+
+    let projectId:
+      | string
+      | null = null;
 
     try {
-      // 1. Upload ảnh thật + lưu sản phẩm vào Supabase
+      // 1. Upload product image
+      // and create product record.
       const {
         product,
-        previewUrl,
-      } = await createProductWithImage({
-        sku,
-        name,
-        file,
-      });
+        storagePath,
+      } =
+        await createProductWithImage({
+          sku,
+          name,
+          file,
+        });
 
-      const productId = product.id;
+      setStatusText(
+        'Creating project...'
+      );
 
-      // 2. Tạo project thật trong Supabase
-      const supabaseProject = await createProject({
-        productId,
+      // 2. Create project in Supabase.
+      const project =
+        await createProject({
+          productId:
+            product.id,
+          space,
+          style,
+          mood,
+          ratio,
+        });
+
+      projectId =
+        project.id;
+
+      setStatusText(
+        'Generating 4 AI visuals...'
+      );
+
+      // 3. Single AI workflow.
+      // generationWorkflow handles:
+      // project lifecycle
+      // generation status
+      // fresh signed URL
+      // Edge Function
+      // FLUX.2 Pro
+      // generation_outputs
+      await generateVisualVersion({
+        projectId:
+          project.id,
+
+        productName:
+          name.trim(),
+
+        productImagePath:
+          storagePath,
+
         space,
         style,
         mood,
         ratio,
       });
 
-      const generation = await createGeneration({
-        projectId: supabaseProject.id,
-        prompt: `${name} | ${space} | ${style} | ${mood} | ${ratio}`,
-        model: 'black-forest-labs/FLUX.2-pro',
-      });
-
-      // 3. Mirror vào localStorage để các màn hiện tại vẫn hoạt động
-      saveProducts([
-        ...getProducts(),
-        {
-          id: productId,
-          sku: sku || 'CAS-' + Date.now().toString().slice(-5),
-          name,
-          imageUrl: previewUrl,
-          category: 'Lighting',
-          createdAt: new Date().toISOString(),
-        },
-      ]);
-
-      // 4. Gọi AI thật
-      await updateProjectStatus(
-        supabaseProject.id,
-        'generating'
+      setStatusText(
+        'Opening results...'
       );
 
-      await updateGenerationStatus(
-        generation.id,
-        'processing'
+      // 4. Go directly to real Results page.
+      nav(
+        '/results/' +
+          project.id
       );
-
-      const { data, error } = await supabase.functions.invoke(
-        'generate-visual',
-        {
-          body: {
-            image_url: previewUrl,
-            space,
-            style,
-            mood,
-            ratio,
-            name,
-          },
-        }
-      );
-
-      if (error) {
-        await updateGenerationStatus(generation.id, 'failed');
-        throw error;
-      }
-
-      console.log('generate-visual response:', data);
-
-      const outputs: string[] = Array.isArray(data?.images)
-        ? data.images
-            .map((x: any) => x?.url || x)
-            .filter(Boolean)
-            .slice(0, 4)
-        : [];
-
-      if (!outputs.length) {
-        await updateGenerationStatus(generation.id, 'failed');
-        throw new Error('AI returned no images');
-      }
-
-      await saveGenerationOutputs(generation.id, outputs);
-
-      await updateGenerationStatus(
-        generation.id,
-        'completed'
-      );
-
-      await updateProjectStatus(
-        supabaseProject.id,
-        'completed'
-      );
-
-      // 5. Giữ project local hiện tại để Results/Dashboard tiếp tục chạy
-      const id = supabaseProject.id;
-
-      saveProjects([
-        ...getProjects(),
-        {
-          id,
-          productId,
-          productName: name,
-          space,
-          style,
-          mood,
-          ratio,
-          createdAt: new Date().toISOString(),
-          outputs,
-        },
-      ]);
-
-      nav('/results/' + id);
     } catch (error) {
-      console.error(error);
+      console.error(
+        'Create workflow failed:',
+        error
+      );
 
-      alert(
+      const message =
         error instanceof Error
           ? error.message
-          : 'Không thể lưu sản phẩm vào Supabase.'
-      );
+          : 'Không thể tạo campaign.';
+
+      alert(message);
+
+      // If product/project were created but
+      // generation failed, keep the project.
+      // Results/Projects can show failed state.
+      if (projectId) {
+        console.info(
+          'Project preserved after failed generation:',
+          projectId
+        );
+      }
     } finally {
       setLoading(false);
+      setStatusText('');
     }
   }
 
   return (
     <>
       <header className="pageTitle">
-        <p className="eyebrow">NEW CAMPAIGN</p>
-        <h1>Create a new visual</h1>
+        <p className="eyebrow">
+          NEW CAMPAIGN
+        </p>
+
+        <h1>
+          Create a new visual
+        </h1>
+
         <p>
-          Start with the real product image. Casani AI Studio builds the
-          surrounding advertising scene.
+          Start with the real product
+          image. Casani AI Studio builds
+          the surrounding advertising
+          scene.
         </p>
       </header>
 
       <div className="createLayout">
         <section className="panel">
-          <h2>1. Product</h2>
+          <h2>
+            1. Product
+          </h2>
 
-          <label className={'drop ' + (img ? 'hasImage' : '')}>
+          <label
+            className={
+              'drop ' +
+              (img
+                ? 'hasImage'
+                : '')
+            }
+          >
             <input
               type="file"
               accept="image/jpeg,image/png,image/webp"
               onChange={upload}
+              disabled={loading}
             />
 
             {img ? (
-              <img src={img} alt="Product preview" />
+              <img
+                src={img}
+                alt="Product preview"
+              />
             ) : (
               <>
                 <Upload size={30} />
-                <b>Drop product photo here</b>
-                <span>JPG, PNG or WEBP · phone photo is fine</span>
+
+                <b>
+                  Drop product photo here
+                </b>
+
+                <span>
+                  JPG, PNG or WEBP · phone
+                  photo is fine
+                </span>
               </>
             )}
           </label>
@@ -235,32 +291,47 @@ export default function Create() {
           <div className="two">
             <label>
               SKU
+
               <input
                 value={sku}
-                onChange={(e) => setSku(e.target.value)}
+                onChange={(e) =>
+                  setSku(
+                    e.target.value
+                  )
+                }
                 placeholder="CL-2088"
+                disabled={loading}
               />
             </label>
 
             <label>
               Product name
+
               <input
                 value={name}
-                onChange={(e) => setName(e.target.value)}
+                onChange={(e) =>
+                  setName(
+                    e.target.value
+                  )
+                }
                 placeholder="Luna Pendant Light"
+                disabled={loading}
               />
             </label>
           </div>
         </section>
 
         <aside className="config panel">
-          <h2>2. Creative direction</h2>
+          <h2>
+            2. Creative direction
+          </h2>
 
           <Pick
             title="Space"
             items={spaces}
             value={space}
             set={setSpace}
+            disabled={loading}
           />
 
           <Pick
@@ -268,6 +339,7 @@ export default function Create() {
             items={styles}
             value={style}
             set={setStyle}
+            disabled={loading}
           />
 
           <Pick
@@ -275,6 +347,7 @@ export default function Create() {
             items={moods}
             value={mood}
             set={setMood}
+            disabled={loading}
           />
 
           <Pick
@@ -282,6 +355,7 @@ export default function Create() {
             items={ratios}
             value={ratio}
             set={setRatio}
+            disabled={loading}
           />
 
           <button
@@ -292,7 +366,8 @@ export default function Create() {
             {loading ? (
               <>
                 <ImageIcon size={18} />
-                Saving product...
+                {statusText ||
+                  'Generating...'}
               </>
             ) : (
               <>
@@ -303,8 +378,9 @@ export default function Create() {
           </button>
 
           <small>
-            Product image is saved to Supabase. AI generation will be connected
-            in the next stage.
+            Product, project, generation
+            and AI outputs are stored
+            directly in Supabase.
           </small>
         </aside>
       </div>
@@ -317,27 +393,38 @@ function Pick({
   items,
   value,
   set,
+  disabled,
 }: {
   title: string;
   items: string[];
   value: string;
   set: (v: string) => void;
+  disabled?: boolean;
 }) {
   return (
     <div className="pick">
       <b>{title}</b>
 
       <div className="chips">
-        {items.map((x) => (
-          <button
-            className={value === x ? 'selected' : ''}
-            onClick={() => set(x)}
-            key={x}
-            type="button"
-          >
-            {x}
-          </button>
-        ))}
+        {items.map(
+          (item) => (
+            <button
+              className={
+                value === item
+                  ? 'selected'
+                  : ''
+              }
+              onClick={() =>
+                set(item)
+              }
+              key={item}
+              type="button"
+              disabled={disabled}
+            >
+              {item}
+            </button>
+          )
+        )}
       </div>
     </div>
   );
