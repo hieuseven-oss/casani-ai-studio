@@ -8,13 +8,20 @@ import {
   RefreshCw,
   Sparkles,
 } from 'lucide-react';
+
 import { getProjectById } from '../lib/projectService';
-import {
-  createGeneration,
-  saveGenerationOutputs,
-  updateGenerationStatus,
-} from '../lib/generationService';
 import { supabase } from '../lib/supabase';
+
+import {
+  generateVisualVersion,
+  DEFAULT_IMAGE_MODEL,
+} from '../lib/generationWorkflow';
+
+import {
+  resolveProductImageUrl,
+  downloadRemoteImage,
+  makeSafeFileName,
+} from '../lib/imageService';
 
 type ProductData = {
   id: string;
@@ -51,34 +58,64 @@ type GenerationOutput = {
 export default function Results() {
   const { id } = useParams();
 
-  const [project, setProject] = useState<ProjectData | null>(null);
+  const [project, setProject] =
+    useState<ProjectData | null>(null);
 
-  const [generations, setGenerations] = useState<Generation[]>([]);
-  const [generationId, setGenerationId] = useState<string | null>(null);
-  const [outputs, setOutputs] = useState<GenerationOutput[]>([]);
+  // Signed URL chỉ dùng để hiển thị.
+  // Không ghi đè product.image_url.
+  const [productDisplayUrl, setProductDisplayUrl] =
+    useState('');
 
-  const [loading, setLoading] = useState(true);
-  const [loadingVersion, setLoadingVersion] = useState(false);
+  const [generations, setGenerations] =
+    useState<Generation[]>([]);
 
-  const [errorMsg, setErrorMsg] = useState('');
-  const [approvingId, setApprovingId] = useState<string | null>(null);
-  const [downloadingId, setDownloadingId] = useState<string | null>(null);
-  const [regenerating, setRegenerating] = useState(false);
+  const [generationId, setGenerationId] =
+    useState<string | null>(null);
 
-  const [customPrompt, setCustomPrompt] = useState('');
-  const [generatingMore, setGeneratingMore] = useState(false);
+  const [outputs, setOutputs] =
+    useState<GenerationOutput[]>([]);
 
-  async function loadOutputs(targetGenerationId: string) {
-    const {
-      data,
-      error,
-    } = await supabase
-      .from('generation_outputs')
-      .select(
-        'id, generation_id, image_url, approved, created_at'
-      )
-      .eq('generation_id', targetGenerationId)
-      .order('created_at', { ascending: true });
+  const [loading, setLoading] =
+    useState(true);
+
+  const [loadingVersion, setLoadingVersion] =
+    useState(false);
+
+  const [errorMsg, setErrorMsg] =
+    useState('');
+
+  const [approvingId, setApprovingId] =
+    useState<string | null>(null);
+
+  const [downloadingId, setDownloadingId] =
+    useState<string | null>(null);
+
+  const [regenerating, setRegenerating] =
+    useState(false);
+
+  const [customPrompt, setCustomPrompt] =
+    useState('');
+
+  const [generatingMore, setGeneratingMore] =
+    useState(false);
+
+  async function loadOutputs(
+    targetGenerationId: string
+  ) {
+    const { data, error } =
+      await supabase
+        .from('generation_outputs')
+        .select(
+          'id, generation_id, image_url, approved, created_at'
+        )
+        .eq(
+          'generation_id',
+          targetGenerationId
+        )
+        .order(
+          'created_at',
+          { ascending: true }
+        );
 
     if (error) {
       throw new Error(
@@ -86,13 +123,53 @@ export default function Results() {
       );
     }
 
-    setGenerationId(targetGenerationId);
-    setOutputs((data ?? []) as GenerationOutput[]);
+    setGenerationId(
+      targetGenerationId
+    );
+
+    setOutputs(
+      (data ?? []) as GenerationOutput[]
+    );
+  }
+
+  async function loadGenerationHistory(
+    projectId: string
+  ) {
+    const {
+      data,
+      error,
+    } = await supabase
+      .from('generations')
+      .select(
+        'id, status, model, created_at'
+      )
+      .eq(
+        'project_id',
+        projectId
+      )
+      .eq(
+        'status',
+        'completed'
+      )
+      .order(
+        'created_at',
+        { ascending: true }
+      );
+
+    if (error) {
+      throw new Error(
+        `Generation history load failed: ${error.message}`
+      );
+    }
+
+    return (data ?? []) as Generation[];
   }
 
   useEffect(() => {
     if (!id) {
-      setErrorMsg('Project ID is missing.');
+      setErrorMsg(
+        'Project ID is missing.'
+      );
       setLoading(false);
       return;
     }
@@ -101,63 +178,58 @@ export default function Results() {
 
     async function load() {
       try {
-        // 1. Project + product
-        const data = await getProjectById(projectId);
-        const loaded = data as ProjectData;
+        setErrorMsg('');
 
-        const product = Array.isArray(loaded.products)
-          ? loaded.products[0]
-          : loaded.products;
+        // 1. Load project.
+        const data =
+          await getProjectById(
+            projectId
+          );
 
-        // Original product image is stored privately.
-        // Convert Storage path into a temporary signed URL.
-        if (product?.image_url) {
-          const {
-            data: signed,
-            error: signedError,
-          } = await supabase.storage
-            .from('product-images')
-            .createSignedUrl(
-              product.image_url,
-              60 * 60
-            );
-
-          if (signedError) {
-            console.warn(
-              'Unable to create product image signed URL:',
-              signedError.message
-            );
-          }
-
-          if (signed?.signedUrl) {
-            product.image_url = signed.signedUrl;
-          }
-        }
+        const loaded =
+          data as ProjectData;
 
         setProject(loaded);
 
-        // 2. Load every completed generation.
-        // Oldest first = Version 1, Version 2, Version 3...
-        const {
-          data: generationRows,
-          error: generationError,
-        } = await supabase
-          .from('generations')
-          .select('id, status, model, created_at')
-          .eq('project_id', projectId)
-          .eq('status', 'completed')
-          .order('created_at', { ascending: true });
+        const product =
+          Array.isArray(
+            loaded.products
+          )
+            ? loaded.products[0]
+            : loaded.products;
 
-        if (generationError) {
-          throw new Error(
-            `Generation history load failed: ${generationError.message}`
-          );
+        // 2. Tạo URL hiển thị riêng.
+        // product.image_url vẫn giữ Storage path gốc.
+        if (product?.image_url) {
+          try {
+            const displayUrl =
+              await resolveProductImageUrl(
+                product.image_url
+              );
+
+            setProductDisplayUrl(
+              displayUrl
+            );
+          } catch (imageError) {
+            console.error(
+              imageError
+            );
+
+            setProductDisplayUrl('');
+          }
+        } else {
+          setProductDisplayUrl('');
         }
 
+        // 3. Load version history.
         const history =
-          (generationRows ?? []) as Generation[];
+          await loadGenerationHistory(
+            projectId
+          );
 
-        setGenerations(history);
+        setGenerations(
+          history
+        );
 
         if (!history.length) {
           setGenerationId(null);
@@ -165,13 +237,19 @@ export default function Results() {
           return;
         }
 
-        // 3. Open newest version by default.
+        // 4. Mở version mới nhất.
         const latest =
-          history[history.length - 1];
+          history[
+            history.length - 1
+          ];
 
-        await loadOutputs(latest.id);
+        await loadOutputs(
+          latest.id
+        );
       } catch (error) {
-        console.error(error);
+        console.error(
+          error
+        );
 
         setErrorMsg(
           error instanceof Error
@@ -186,11 +264,15 @@ export default function Results() {
     load();
   }, [id]);
 
-  async function selectVersion(targetGenerationId: string) {
+  async function selectVersion(
+    targetGenerationId: string
+  ) {
     if (
-      targetGenerationId === generationId ||
+      targetGenerationId ===
+        generationId ||
       loadingVersion ||
-      regenerating
+      regenerating ||
+      generatingMore
     ) {
       return;
     }
@@ -199,9 +281,13 @@ export default function Results() {
     setErrorMsg('');
 
     try {
-      await loadOutputs(targetGenerationId);
+      await loadOutputs(
+        targetGenerationId
+      );
     } catch (error) {
-      console.error(error);
+      console.error(
+        error
+      );
 
       setErrorMsg(
         error instanceof Error
@@ -213,18 +299,36 @@ export default function Results() {
     }
   }
 
-  async function approveOutput(outputId: string) {
-    if (!generationId || approvingId) return;
+  async function approveOutput(
+    outputId: string
+  ) {
+    if (
+      !generationId ||
+      approvingId
+    ) {
+      return;
+    }
 
-    setApprovingId(outputId);
+    setApprovingId(
+      outputId
+    );
+
     setErrorMsg('');
 
     try {
-      // Approval belongs to the currently selected generation.
-      const { error: resetError } = await supabase
-        .from('generation_outputs')
-        .update({ approved: false })
-        .eq('generation_id', generationId);
+      const {
+        error: resetError,
+      } = await supabase
+        .from(
+          'generation_outputs'
+        )
+        .update({
+          approved: false,
+        })
+        .eq(
+          'generation_id',
+          generationId
+        );
 
       if (resetError) {
         throw new Error(
@@ -232,11 +336,23 @@ export default function Results() {
         );
       }
 
-      const { error: approveError } = await supabase
-        .from('generation_outputs')
-        .update({ approved: true })
-        .eq('id', outputId)
-        .eq('generation_id', generationId);
+      const {
+        error: approveError,
+      } = await supabase
+        .from(
+          'generation_outputs'
+        )
+        .update({
+          approved: true,
+        })
+        .eq(
+          'id',
+          outputId
+        )
+        .eq(
+          'generation_id',
+          generationId
+        );
 
       if (approveError) {
         throw new Error(
@@ -244,14 +360,21 @@ export default function Results() {
         );
       }
 
-      setOutputs((current) =>
-        current.map((output) => ({
-          ...output,
-          approved: output.id === outputId,
-        }))
+      setOutputs(
+        (current) =>
+          current.map(
+            (output) => ({
+              ...output,
+              approved:
+                output.id ===
+                outputId,
+            })
+          )
       );
     } catch (error) {
-      console.error(error);
+      console.error(
+        error
+      );
 
       setErrorMsg(
         error instanceof Error
@@ -259,7 +382,9 @@ export default function Results() {
           : 'Unable to approve image.'
       );
     } finally {
-      setApprovingId(null);
+      setApprovingId(
+        null
+      );
     }
   }
 
@@ -268,62 +393,42 @@ export default function Results() {
     index: number,
     productName: string
   ) {
-    if (downloadingId) return;
+    if (downloadingId) {
+      return;
+    }
 
-    setDownloadingId(output.id);
+    setDownloadingId(
+      output.id
+    );
+
     setErrorMsg('');
 
     try {
-      const response = await fetch(output.image_url);
-
-      if (!response.ok) {
-        throw new Error(
-          `Download failed with status ${response.status}`
-        );
-      }
-
-      const blob = await response.blob();
-
-      const extension =
-        blob.type.includes('png')
-          ? 'png'
-          : blob.type.includes('webp')
-          ? 'webp'
-          : 'jpg';
-
-      const safeName = productName
-        .trim()
-        .toLowerCase()
-        .replace(/[^a-z0-9]+/g, '-')
-        .replace(/^-+|-+$/g, '');
-
       const versionIndex =
         generations.findIndex(
           (generation) =>
-            generation.id === generationId
+            generation.id ===
+            generationId
         ) + 1;
 
+      const safeName =
+        makeSafeFileName(
+          productName
+        ) || 'casani';
+
       const fileName =
-        `${safeName || 'casani'}` +
+        `${safeName}` +
         `-v${versionIndex || 1}` +
-        `-ai-visual-${index + 1}.${extension}`;
+        `-ai-visual-${index + 1}`;
 
-      const blobUrl =
-        URL.createObjectURL(blob);
-
-      const anchor =
-        document.createElement('a');
-
-      anchor.href = blobUrl;
-      anchor.download = fileName;
-
-      document.body.appendChild(anchor);
-      anchor.click();
-      anchor.remove();
-
-      URL.revokeObjectURL(blobUrl);
+      await downloadRemoteImage(
+        output.image_url,
+        fileName
+      );
     } catch (error) {
-      console.error(error);
+      console.error(
+        error
+      );
 
       setErrorMsg(
         error instanceof Error
@@ -331,139 +436,118 @@ export default function Results() {
           : 'Unable to download image.'
       );
     } finally {
-      setDownloadingId(null);
+      setDownloadingId(
+        null
+      );
     }
   }
 
-  async function regenerate() {
-    if (!project || regenerating) return;
+  async function createNewVersion(
+    instruction?: string
+  ) {
+    if (!project) {
+      throw new Error(
+        'Project is missing.'
+      );
+    }
 
-    const product = Array.isArray(project.products)
-      ? project.products[0]
-      : project.products;
+    const product =
+      Array.isArray(
+        project.products
+      )
+        ? project.products[0]
+        : project.products;
 
-    if (!product?.image_url) {
-      setErrorMsg(
+    if (!product) {
+      throw new Error(
+        'Product is missing.'
+      );
+    }
+
+    // Đây là Storage path gốc,
+    // không phải signed URL hiển thị.
+    if (!product.image_url) {
+      throw new Error(
         'Original product image is missing.'
       );
+    }
+
+    const result =
+      await generateVisualVersion({
+        projectId:
+          project.id,
+
+        productName:
+          product.name,
+
+        productImagePath:
+          product.image_url,
+
+        space:
+          project.space,
+
+        style:
+          project.style,
+
+        mood:
+          project.mood,
+
+        ratio:
+          project.aspect_ratio,
+
+        customPrompt:
+          instruction,
+      });
+
+    const newGeneration: Generation = {
+      id:
+        result.generationId,
+
+      status:
+        'completed',
+
+      model:
+        DEFAULT_IMAGE_MODEL,
+
+      created_at:
+        new Date().toISOString(),
+    };
+
+    setGenerations(
+      (current) => [
+        ...current,
+        newGeneration,
+      ]
+    );
+
+    await loadOutputs(
+      result.generationId
+    );
+
+    return result;
+  }
+
+  async function regenerate() {
+    if (
+      !project ||
+      regenerating ||
+      generatingMore
+    ) {
       return;
     }
 
-    setRegenerating(true);
+    setRegenerating(
+      true
+    );
+
     setErrorMsg('');
 
-    let newGenerationId: string | null = null;
-
     try {
-      // 1. New generation = new version.
-      const generation =
-        await createGeneration({
-          projectId: project.id,
-          prompt:
-            `${product.name} | ` +
-            `${project.space || ''} | ` +
-            `${project.style || ''} | ` +
-            `${project.mood || ''} | ` +
-            `${project.aspect_ratio || ''}`,
-          model:
-            'black-forest-labs/FLUX.2-pro',
-        });
-
-      const createdGenerationId =
-        generation.id as string;
-
-      newGenerationId =
-        createdGenerationId;
-
-      await updateGenerationStatus(
-        createdGenerationId,
-        'processing'
-      );
-
-      // 2. Generate 4 new visuals.
-      const {
-        data,
-        error,
-      } = await supabase.functions.invoke(
-        'generate-visual',
-        {
-          body: {
-            image_url: product.image_url,
-            space: project.space,
-            style: project.style,
-            mood: project.mood,
-            ratio: project.aspect_ratio,
-            name: product.name,
-          },
-        }
-      );
-
-      if (error) {
-        throw error;
-      }
-
-      const imageUrls: string[] =
-        Array.isArray(data?.images)
-          ? data.images
-              .map(
-                (item: any) =>
-                  item?.url || item
-              )
-              .filter(Boolean)
-              .slice(0, 4)
-          : [];
-
-      if (!imageUrls.length) {
-        throw new Error(
-          'AI returned no regenerated images.'
-        );
-      }
-
-      // 3. Persist new version.
-      await saveGenerationOutputs(
-        createdGenerationId,
-        imageUrls
-      );
-
-      await updateGenerationStatus(
-        createdGenerationId,
-        'completed'
-      );
-
-      // 4. Add it to history and immediately open it.
-      const newGeneration: Generation = {
-        id: createdGenerationId,
-        status: 'completed',
-        model:
-          'black-forest-labs/FLUX.2-pro',
-        created_at:
-          new Date().toISOString(),
-      };
-
-      setGenerations((current) => [
-        ...current,
-        newGeneration,
-      ]);
-
-      await loadOutputs(
-        createdGenerationId
-      );
+      await createNewVersion();
     } catch (error) {
-      console.error(error);
-
-      if (newGenerationId) {
-        try {
-          await updateGenerationStatus(
-            newGenerationId,
-            'failed'
-          );
-        } catch (statusError) {
-          console.error(
-            'Unable to mark generation failed:',
-            statusError
-          );
-        }
-      }
+      console.error(
+        error
+      );
 
       setErrorMsg(
         error instanceof Error
@@ -471,7 +555,9 @@ export default function Results() {
           : 'Unable to regenerate visuals.'
       );
     } finally {
-      setRegenerating(false);
+      setRegenerating(
+        false
+      );
     }
   }
 
@@ -484,7 +570,8 @@ export default function Results() {
       return;
     }
 
-    const instruction = customPrompt.trim();
+    const instruction =
+      customPrompt.trim();
 
     if (!instruction) {
       setErrorMsg(
@@ -493,132 +580,22 @@ export default function Results() {
       return;
     }
 
-    const product = Array.isArray(project.products)
-      ? project.products[0]
-      : project.products;
+    setGeneratingMore(
+      true
+    );
 
-    if (!product?.image_url) {
-      setErrorMsg(
-        'Original product image is missing.'
-      );
-      return;
-    }
-
-    setGeneratingMore(true);
     setErrorMsg('');
 
-    let newGenerationId: string | null = null;
-
     try {
-      const generation =
-        await createGeneration({
-          projectId: project.id,
-          prompt:
-            `${product.name} | ` +
-            `${project.space || ''} | ` +
-            `${project.style || ''} | ` +
-            `${project.mood || ''} | ` +
-            `${project.aspect_ratio || ''} | ` +
-            `CUSTOM: ${instruction}`,
-          model:
-            'black-forest-labs/FLUX.2-pro',
-        });
-
-      const createdGenerationId =
-        generation.id as string;
-
-      newGenerationId =
-        createdGenerationId;
-
-      await updateGenerationStatus(
-        createdGenerationId,
-        'processing'
-      );
-
-      const {
-        data,
-        error,
-      } = await supabase.functions.invoke(
-        'generate-visual',
-        {
-          body: {
-            image_url: product.image_url,
-            space: project.space,
-            style: project.style,
-            mood: project.mood,
-            ratio: project.aspect_ratio,
-            name: product.name,
-            custom_prompt: instruction,
-          },
-        }
-      );
-
-      if (error) {
-        throw error;
-      }
-
-      const imageUrls: string[] =
-        Array.isArray(data?.images)
-          ? data.images
-              .map(
-                (item: any) =>
-                  item?.url || item
-              )
-              .filter(Boolean)
-              .slice(0, 4)
-          : [];
-
-      if (!imageUrls.length) {
-        throw new Error(
-          'AI returned no images.'
-        );
-      }
-
-      await saveGenerationOutputs(
-        createdGenerationId,
-        imageUrls
-      );
-
-      await updateGenerationStatus(
-        createdGenerationId,
-        'completed'
-      );
-
-      const newGeneration: Generation = {
-        id: createdGenerationId,
-        status: 'completed',
-        model:
-          'black-forest-labs/FLUX.2-pro',
-        created_at:
-          new Date().toISOString(),
-      };
-
-      setGenerations((current) => [
-        ...current,
-        newGeneration,
-      ]);
-
-      await loadOutputs(
-        createdGenerationId
+      await createNewVersion(
+        instruction
       );
 
       setCustomPrompt('');
     } catch (error) {
-      console.error(error);
-
-      if (newGenerationId) {
-        try {
-          await updateGenerationStatus(
-            newGenerationId,
-            'failed'
-          );
-        } catch (statusError) {
-          console.error(
-            'Unable to mark generation failed:',
-            statusError
-          );
-        }
-      }
+      console.error(
+        error
+      );
 
       setErrorMsg(
         error instanceof Error
@@ -626,7 +603,9 @@ export default function Results() {
           : 'Unable to generate new version.'
       );
     } finally {
-      setGeneratingMore(false);
+      setGeneratingMore(
+        false
+      );
     }
   }
 
@@ -638,7 +617,10 @@ export default function Results() {
     );
   }
 
-  if (errorMsg && !project) {
+  if (
+    errorMsg &&
+    !project
+  ) {
     return (
       <div className="empty">
         {errorMsg}
@@ -655,7 +637,9 @@ export default function Results() {
   }
 
   const product =
-    Array.isArray(project.products)
+    Array.isArray(
+      project.products
+    )
       ? project.products[0]
       : project.products;
 
@@ -666,8 +650,13 @@ export default function Results() {
   const selectedVersionIndex =
     generations.findIndex(
       (generation) =>
-        generation.id === generationId
+        generation.id ===
+        generationId
     );
+
+  const busy =
+    regenerating ||
+    generatingMore;
 
   return (
     <>
@@ -681,7 +670,9 @@ export default function Results() {
             Projects
           </Link>
 
-          <h1>{productName}</h1>
+          <h1>
+            {productName}
+          </h1>
 
           <p>
             {project.style || '—'} ·{' '}
@@ -694,8 +685,10 @@ export default function Results() {
         <button
           type="button"
           className="btn"
-          onClick={regenerate}
-          disabled={regenerating}
+          onClick={
+            regenerate
+          }
+          disabled={busy}
         >
           {regenerating ? (
             <>
@@ -720,14 +713,18 @@ export default function Results() {
           <div
             style={{
               display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between',
+              alignItems:
+                'center',
+              justifyContent:
+                'space-between',
               gap: 16,
               marginBottom: 12,
             }}
           >
             <div>
-              <b>Generation History</b>
+              <b>
+                Generation History
+              </b>
 
               <div
                 style={{
@@ -743,7 +740,8 @@ export default function Results() {
               </div>
             </div>
 
-            {selectedVersionIndex >= 0 && (
+            {selectedVersionIndex >=
+              0 && (
               <span
                 style={{
                   opacity: 0.65,
@@ -751,7 +749,8 @@ export default function Results() {
                 }}
               >
                 Viewing Version{' '}
-                {selectedVersionIndex + 1}
+                {selectedVersionIndex +
+                  1}
               </span>
             )}
           </div>
@@ -764,19 +763,25 @@ export default function Results() {
             }}
           >
             {generations.map(
-              (generation, index) => {
+              (
+                generation,
+                index
+              ) => {
                 const selected =
                   generation.id ===
                   generationId;
 
                 const latest =
                   index ===
-                  generations.length - 1;
+                  generations.length -
+                    1;
 
                 return (
                   <button
                     type="button"
-                    key={generation.id}
+                    key={
+                      generation.id
+                    }
                     className={
                       selected
                         ? 'btn primary'
@@ -784,7 +789,7 @@ export default function Results() {
                     }
                     disabled={
                       loadingVersion ||
-                      regenerating
+                      busy
                     }
                     onClick={() =>
                       selectVersion(
@@ -792,12 +797,8 @@ export default function Results() {
                       )
                     }
                   >
-                    {loadingVersion &&
-                    selected ? (
-                      <Loader2 size={16} />
-                    ) : null}
-
-                    Version {index + 1}
+                    Version{' '}
+                    {index + 1}
 
                     {latest
                       ? ' · Latest'
@@ -832,8 +833,9 @@ export default function Results() {
               fontSize: 13,
             }}
           >
-            Describe what you want to change.
-            The original product should remain unchanged.
+            Describe what you want to
+            change. The original product
+            should remain unchanged.
           </div>
         </div>
 
@@ -844,10 +846,7 @@ export default function Results() {
               event.target.value
             )
           }
-          disabled={
-            generatingMore ||
-            regenerating
-          }
+          disabled={busy}
           placeholder="Ví dụ: Phòng khách trần cao, ánh sáng buổi tối, tường đá tối màu, phong cách luxury hiện đại, giữ nguyên mẫu đèn..."
           rows={4}
           style={{
@@ -860,10 +859,11 @@ export default function Results() {
         <button
           type="button"
           className="btn primary"
-          onClick={generateMore}
+          onClick={
+            generateMore
+          }
           disabled={
-            generatingMore ||
-            regenerating ||
+            busy ||
             !customPrompt.trim()
           }
         >
@@ -893,10 +893,12 @@ export default function Results() {
         </div>
       ) : (
         <div className="resultGrid">
-          {product?.image_url && (
+          {productDisplayUrl && (
             <article className="result">
               <img
-                src={product.image_url}
+                src={
+                  productDisplayUrl
+                }
                 alt={productName}
               />
 
@@ -910,7 +912,10 @@ export default function Results() {
 
           {outputs.length > 0 ? (
             outputs.map(
-              (output, index) => {
+              (
+                output,
+                index
+              ) => {
                 const isApproved =
                   Boolean(
                     output.approved
@@ -965,7 +970,7 @@ export default function Results() {
                             approvingId
                           ) ||
                           isApproved ||
-                          regenerating
+                          busy
                         }
                       >
                         {isApproving ? (
@@ -1001,7 +1006,7 @@ export default function Results() {
                           Boolean(
                             downloadingId
                           ) ||
-                          regenerating
+                          busy
                         }
                       >
                         {isDownloading ? (
@@ -1037,8 +1042,7 @@ export default function Results() {
             )
           ) : (
             <div className="empty">
-              No generated visuals
-              yet
+              No generated visuals yet
             </div>
           )}
         </div>

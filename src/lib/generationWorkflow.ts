@@ -102,14 +102,42 @@ export async function generateVisualVersion(
     );
 
     if (error) {
+      let detail = error.message;
+
+      try {
+        const context = (error as any)?.context;
+
+        if (context instanceof Response) {
+          const responseText = await context.text();
+
+          if (responseText) {
+            try {
+              const parsed = JSON.parse(responseText);
+
+              detail =
+                parsed?.error ||
+                parsed?.message ||
+                responseText;
+            } catch {
+              detail = responseText;
+            }
+          }
+        }
+      } catch (contextError) {
+        console.error(
+          'Unable to read Edge Function error response:',
+          contextError
+        );
+      }
+
       throw new Error(
-        `AI generation failed: ${error.message}`
+        `AI generation failed: ${detail}`
       );
     }
 
     if (data?.error) {
       throw new Error(
-        String(data.error)
+        `AI generation failed: ${String(data.error)}`
       );
     }
 
