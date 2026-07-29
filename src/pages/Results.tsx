@@ -32,6 +32,13 @@ type ProjectData = {
   products: ProductData | ProductData[] | null;
 };
 
+type Generation = {
+  id: string;
+  status: string | null;
+  model: string | null;
+  created_at: string;
+};
+
 type GenerationOutput = {
   id: string;
   generation_id: string;
@@ -44,14 +51,40 @@ export default function Results() {
   const { id } = useParams();
 
   const [project, setProject] = useState<ProjectData | null>(null);
-  const [outputs, setOutputs] = useState<GenerationOutput[]>([]);
+
+  const [generations, setGenerations] = useState<Generation[]>([]);
   const [generationId, setGenerationId] = useState<string | null>(null);
+  const [outputs, setOutputs] = useState<GenerationOutput[]>([]);
 
   const [loading, setLoading] = useState(true);
+  const [loadingVersion, setLoadingVersion] = useState(false);
+
   const [errorMsg, setErrorMsg] = useState('');
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [regenerating, setRegenerating] = useState(false);
+
+  async function loadOutputs(targetGenerationId: string) {
+    const {
+      data,
+      error,
+    } = await supabase
+      .from('generation_outputs')
+      .select(
+        'id, generation_id, image_url, approved, created_at'
+      )
+      .eq('generation_id', targetGenerationId)
+      .order('created_at', { ascending: true });
+
+    if (error) {
+      throw new Error(
+        `Generation outputs load failed: ${error.message}`
+      );
+    }
+
+    setGenerationId(targetGenerationId);
+    setOutputs((data ?? []) as GenerationOutput[]);
+  }
 
   useEffect(() => {
     if (!id) {
@@ -64,6 +97,7 @@ export default function Results() {
 
     async function load() {
       try {
+        // 1. Project + product
         const data = await getProjectById(projectId);
         const loaded = data as ProjectData;
 
@@ -71,11 +105,18 @@ export default function Results() {
           ? loaded.products[0]
           : loaded.products;
 
+        // Original product image is stored privately.
+        // Convert Storage path into a temporary signed URL.
         if (product?.image_url) {
-          const { data: signed, error: signedError } =
-            await supabase.storage
-              .from('product-images')
-              .createSignedUrl(product.image_url, 60 * 60);
+          const {
+            data: signed,
+            error: signedError,
+          } = await supabase.storage
+            .from('product-images')
+            .createSignedUrl(
+              product.image_url,
+              60 * 60
+            );
 
           if (signedError) {
             console.warn(
@@ -91,52 +132,40 @@ export default function Results() {
 
         setProject(loaded);
 
+        // 2. Load every completed generation.
+        // Oldest first = Version 1, Version 2, Version 3...
         const {
-          data: generation,
+          data: generationRows,
           error: generationError,
         } = await supabase
           .from('generations')
-          .select('id, status, created_at')
+          .select('id, status, model, created_at')
           .eq('project_id', projectId)
           .eq('status', 'completed')
-          .order('created_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
+          .order('created_at', { ascending: true });
 
         if (generationError) {
           throw new Error(
-            `Generation load failed: ${generationError.message}`
+            `Generation history load failed: ${generationError.message}`
           );
         }
 
-        if (!generation) {
+        const history =
+          (generationRows ?? []) as Generation[];
+
+        setGenerations(history);
+
+        if (!history.length) {
           setGenerationId(null);
           setOutputs([]);
           return;
         }
 
-        setGenerationId(generation.id);
+        // 3. Open newest version by default.
+        const latest =
+          history[history.length - 1];
 
-        const {
-          data: generatedOutputs,
-          error: outputsError,
-        } = await supabase
-          .from('generation_outputs')
-          .select(
-            'id, generation_id, image_url, approved, created_at'
-          )
-          .eq('generation_id', generation.id)
-          .order('created_at', { ascending: true });
-
-        if (outputsError) {
-          throw new Error(
-            `Generation outputs load failed: ${outputsError.message}`
-          );
-        }
-
-        setOutputs(
-          (generatedOutputs ?? []) as GenerationOutput[]
-        );
+        await loadOutputs(latest.id);
       } catch (error) {
         console.error(error);
 
@@ -153,6 +182,33 @@ export default function Results() {
     load();
   }, [id]);
 
+  async function selectVersion(targetGenerationId: string) {
+    if (
+      targetGenerationId === generationId ||
+      loadingVersion ||
+      regenerating
+    ) {
+      return;
+    }
+
+    setLoadingVersion(true);
+    setErrorMsg('');
+
+    try {
+      await loadOutputs(targetGenerationId);
+    } catch (error) {
+      console.error(error);
+
+      setErrorMsg(
+        error instanceof Error
+          ? error.message
+          : 'Unable to load this version.'
+      );
+    } finally {
+      setLoadingVersion(false);
+    }
+  }
+
   async function approveOutput(outputId: string) {
     if (!generationId || approvingId) return;
 
@@ -160,6 +216,7 @@ export default function Results() {
     setErrorMsg('');
 
     try {
+      // Approval belongs to the currently selected generation.
       const { error: resetError } = await supabase
         .from('generation_outputs')
         .update({ approved: false })
@@ -236,11 +293,22 @@ export default function Results() {
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '');
 
-      const fileName =
-        `${safeName || 'casani'}-ai-visual-${index + 1}.${extension}`;
+      const versionIndex =
+        generations.findIndex(
+          (generation) =>
+            generation.id === generationId
+        ) + 1;
 
-      const blobUrl = URL.createObjectURL(blob);
-      const anchor = document.createElement('a');
+      const fileName =
+        `${safeName || 'casani'}` +
+        `-v${versionIndex || 1}` +
+        `-ai-visual-${index + 1}.${extension}`;
+
+      const blobUrl =
+        URL.createObjectURL(blob);
+
+      const anchor =
+        document.createElement('a');
 
       anchor.href = blobUrl;
       anchor.download = fileName;
@@ -271,7 +339,9 @@ export default function Results() {
       : project.products;
 
     if (!product?.image_url) {
-      setErrorMsg('Original product image is missing.');
+      setErrorMsg(
+        'Original product image is missing.'
+      );
       return;
     }
 
@@ -281,42 +351,48 @@ export default function Results() {
     let newGenerationId: string | null = null;
 
     try {
-      // 1. Create a brand-new generation.
-      // Previous generations remain in the database.
-      const generation = await createGeneration({
-        projectId: project.id,
-        prompt:
-          `${product.name} | ` +
-          `${project.space || ''} | ` +
-          `${project.style || ''} | ` +
-          `${project.mood || ''} | ` +
-          `${project.aspect_ratio || ''}`,
-        model: 'black-forest-labs/FLUX.2-pro',
-      });
+      // 1. New generation = new version.
+      const generation =
+        await createGeneration({
+          projectId: project.id,
+          prompt:
+            `${product.name} | ` +
+            `${project.space || ''} | ` +
+            `${project.style || ''} | ` +
+            `${project.mood || ''} | ` +
+            `${project.aspect_ratio || ''}`,
+          model:
+            'black-forest-labs/FLUX.2-pro',
+        });
 
-      const createdGenerationId = generation.id as string;
-      newGenerationId = createdGenerationId;
+      const createdGenerationId =
+        generation.id as string;
+
+      newGenerationId =
+        createdGenerationId;
 
       await updateGenerationStatus(
         createdGenerationId,
         'processing'
       );
 
-      // 2. Generate four new visuals using the same original product.
-      const { data, error } =
-        await supabase.functions.invoke(
-          'generate-visual',
-          {
-            body: {
-              image_url: product.image_url,
-              space: project.space,
-              style: project.style,
-              mood: project.mood,
-              ratio: project.aspect_ratio,
-              name: product.name,
-            },
-          }
-        );
+      // 2. Generate 4 new visuals.
+      const {
+        data,
+        error,
+      } = await supabase.functions.invoke(
+        'generate-visual',
+        {
+          body: {
+            image_url: product.image_url,
+            space: project.space,
+            style: project.style,
+            mood: project.mood,
+            ratio: project.aspect_ratio,
+            name: product.name,
+          },
+        }
+      );
 
       if (error) {
         throw error;
@@ -325,7 +401,10 @@ export default function Results() {
       const imageUrls: string[] =
         Array.isArray(data?.images)
           ? data.images
-              .map((item: any) => item?.url || item)
+              .map(
+                (item: any) =>
+                  item?.url || item
+              )
               .filter(Boolean)
               .slice(0, 4)
           : [];
@@ -336,7 +415,7 @@ export default function Results() {
         );
       }
 
-      // 3. Save the new image set.
+      // 3. Persist new version.
       await saveGenerationOutputs(
         createdGenerationId,
         imageUrls
@@ -347,28 +426,23 @@ export default function Results() {
         'completed'
       );
 
-      // 4. Load the newly saved rows.
-      const {
-        data: newOutputs,
-        error: outputsError,
-      } = await supabase
-        .from('generation_outputs')
-        .select(
-          'id, generation_id, image_url, approved, created_at'
-        )
-        .eq('generation_id', createdGenerationId)
-        .order('created_at', { ascending: true });
+      // 4. Add it to history and immediately open it.
+      const newGeneration: Generation = {
+        id: createdGenerationId,
+        status: 'completed',
+        model:
+          'black-forest-labs/FLUX.2-pro',
+        created_at:
+          new Date().toISOString(),
+      };
 
-      if (outputsError) {
-        throw new Error(
-          `Unable to load regenerated images: ${outputsError.message}`
-        );
-      }
+      setGenerations((current) => [
+        ...current,
+        newGeneration,
+      ]);
 
-      setGenerationId(createdGenerationId);
-
-      setOutputs(
-        (newOutputs ?? []) as GenerationOutput[]
+      await loadOutputs(
+        createdGenerationId
       );
     } catch (error) {
       console.error(error);
@@ -398,29 +472,52 @@ export default function Results() {
   }
 
   if (loading) {
-    return <div className="empty">Loading project...</div>;
+    return (
+      <div className="empty">
+        Loading project...
+      </div>
+    );
   }
 
   if (errorMsg && !project) {
-    return <div className="empty">{errorMsg}</div>;
+    return (
+      <div className="empty">
+        {errorMsg}
+      </div>
+    );
   }
 
   if (!project) {
-    return <div className="empty">Project not found.</div>;
+    return (
+      <div className="empty">
+        Project not found.
+      </div>
+    );
   }
 
-  const product = Array.isArray(project.products)
-    ? project.products[0]
-    : project.products;
+  const product =
+    Array.isArray(project.products)
+      ? project.products[0]
+      : project.products;
 
   const productName =
-    product?.name || 'Untitled project';
+    product?.name ||
+    'Untitled project';
+
+  const selectedVersionIndex =
+    generations.findIndex(
+      (generation) =>
+        generation.id === generationId
+    );
 
   return (
     <>
       <header className="sectionHead topmini">
         <div>
-          <Link to="/projects" className="back">
+          <Link
+            to="/projects"
+            className="back"
+          >
             <ArrowLeft size={16} />
             Projects
           </Link>
@@ -455,126 +552,267 @@ export default function Results() {
         </button>
       </header>
 
+      {generations.length > 0 && (
+        <section
+          style={{
+            marginBottom: 28,
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              gap: 16,
+              marginBottom: 12,
+            }}
+          >
+            <div>
+              <b>Generation History</b>
+
+              <div
+                style={{
+                  marginTop: 4,
+                  opacity: 0.65,
+                  fontSize: 13,
+                }}
+              >
+                {generations.length}{' '}
+                {generations.length === 1
+                  ? 'version'
+                  : 'versions'}
+              </div>
+            </div>
+
+            {selectedVersionIndex >= 0 && (
+              <span
+                style={{
+                  opacity: 0.65,
+                  fontSize: 13,
+                }}
+              >
+                Viewing Version{' '}
+                {selectedVersionIndex + 1}
+              </span>
+            )}
+          </div>
+
+          <div
+            style={{
+              display: 'flex',
+              gap: 10,
+              flexWrap: 'wrap',
+            }}
+          >
+            {generations.map(
+              (generation, index) => {
+                const selected =
+                  generation.id ===
+                  generationId;
+
+                const latest =
+                  index ===
+                  generations.length - 1;
+
+                return (
+                  <button
+                    type="button"
+                    key={generation.id}
+                    className={
+                      selected
+                        ? 'btn primary'
+                        : 'btn'
+                    }
+                    disabled={
+                      loadingVersion ||
+                      regenerating
+                    }
+                    onClick={() =>
+                      selectVersion(
+                        generation.id
+                      )
+                    }
+                  >
+                    {loadingVersion &&
+                    selected ? (
+                      <Loader2 size={16} />
+                    ) : null}
+
+                    Version {index + 1}
+
+                    {latest
+                      ? ' · Latest'
+                      : ''}
+                  </button>
+                );
+              }
+            )}
+          </div>
+        </section>
+      )}
+
       {errorMsg && (
         <div className="empty">
           {errorMsg}
         </div>
       )}
 
-      <div className="resultGrid">
-        {product?.image_url && (
-          <article className="result">
-            <img
-              src={product.image_url}
-              alt={productName}
-            />
+      {loadingVersion ? (
+        <div className="empty">
+          Loading version...
+        </div>
+      ) : (
+        <div className="resultGrid">
+          {product?.image_url && (
+            <article className="result">
+              <img
+                src={product.image_url}
+                alt={productName}
+              />
 
-            <div className="resultActions">
-              <span>Original product</span>
-            </div>
-          </article>
-        )}
+              <div className="resultActions">
+                <span>
+                  Original product
+                </span>
+              </div>
+            </article>
+          )}
 
-        {outputs.length > 0 ? (
-          outputs.map((output, index) => {
-            const isApproved = Boolean(output.approved);
-            const isApproving = approvingId === output.id;
-            const isDownloading =
-              downloadingId === output.id;
+          {outputs.length > 0 ? (
+            outputs.map(
+              (output, index) => {
+                const isApproved =
+                  Boolean(
+                    output.approved
+                  );
 
-            return (
-              <article
-                className={`result ${
-                  isApproved ? 'approvedResult' : ''
-                }`}
-                key={output.id}
-              >
-                <img
-                  src={output.image_url}
-                  alt={`AI visual ${index + 1}`}
-                />
+                const isApproving =
+                  approvingId ===
+                  output.id;
 
-                <div className="resultActions">
-                  <span>
-                    AI visual {index + 1}
-                  </span>
+                const isDownloading =
+                  downloadingId ===
+                  output.id;
 
-                  <button
-                    type="button"
-                    className={
+                return (
+                  <article
+                    className={`result ${
                       isApproved
-                        ? 'btn primary'
-                        : 'btn'
-                    }
-                    onClick={() =>
-                      approveOutput(output.id)
-                    }
-                    disabled={
-                      Boolean(approvingId) ||
-                      isApproved ||
-                      regenerating
-                    }
+                        ? 'approvedResult'
+                        : ''
+                    }`}
+                    key={output.id}
                   >
-                    {isApproving ? (
-                      <>
-                        <Loader2 size={16} />
-                        Saving...
-                      </>
-                    ) : isApproved ? (
-                      <>
-                        <Check size={16} />
-                        Approved
-                      </>
-                    ) : (
-                      'Approve'
-                    )}
-                  </button>
+                    <img
+                      src={
+                        output.image_url
+                      }
+                      alt={`AI visual ${
+                        index + 1
+                      }`}
+                    />
 
-                  <button
-                    type="button"
-                    className="btn"
-                    onClick={() =>
-                      downloadOutput(
-                        output,
-                        index,
-                        productName
-                      )
-                    }
-                    disabled={
-                      Boolean(downloadingId) ||
-                      regenerating
-                    }
-                  >
-                    {isDownloading ? (
-                      <>
-                        <Loader2 size={16} />
-                        Downloading...
-                      </>
-                    ) : (
-                      <>
-                        <Download size={16} />
-                        Download
-                      </>
-                    )}
-                  </button>
+                    <div className="resultActions">
+                      <span>
+                        AI visual{' '}
+                        {index + 1}
+                      </span>
 
-                  <a
-                    href={output.image_url}
-                    target="_blank"
-                    rel="noreferrer"
-                  >
-                    Open image
-                  </a>
-                </div>
-              </article>
-            );
-          })
-        ) : (
-          <div className="empty">
-            No generated visuals yet
-          </div>
-        )}
-      </div>
+                      <button
+                        type="button"
+                        className={
+                          isApproved
+                            ? 'btn primary'
+                            : 'btn'
+                        }
+                        onClick={() =>
+                          approveOutput(
+                            output.id
+                          )
+                        }
+                        disabled={
+                          Boolean(
+                            approvingId
+                          ) ||
+                          isApproved ||
+                          regenerating
+                        }
+                      >
+                        {isApproving ? (
+                          <>
+                            <Loader2
+                              size={16}
+                            />
+                            Saving...
+                          </>
+                        ) : isApproved ? (
+                          <>
+                            <Check
+                              size={16}
+                            />
+                            Approved
+                          </>
+                        ) : (
+                          'Approve'
+                        )}
+                      </button>
+
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={() =>
+                          downloadOutput(
+                            output,
+                            index,
+                            productName
+                          )
+                        }
+                        disabled={
+                          Boolean(
+                            downloadingId
+                          ) ||
+                          regenerating
+                        }
+                      >
+                        {isDownloading ? (
+                          <>
+                            <Loader2
+                              size={16}
+                            />
+                            Downloading...
+                          </>
+                        ) : (
+                          <>
+                            <Download
+                              size={16}
+                            />
+                            Download
+                          </>
+                        )}
+                      </button>
+
+                      <a
+                        href={
+                          output.image_url
+                        }
+                        target="_blank"
+                        rel="noreferrer"
+                      >
+                        Open image
+                      </a>
+                    </div>
+                  </article>
+                );
+              }
+            )
+          ) : (
+            <div className="empty">
+              No generated visuals
+              yet
+            </div>
+          )}
+        </div>
+      )}
     </>
   );
 }
