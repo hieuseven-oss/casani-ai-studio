@@ -5,8 +5,14 @@ import {
   Check,
   Download,
   Loader2,
+  RefreshCw,
 } from 'lucide-react';
 import { getProjectById } from '../lib/projectService';
+import {
+  createGeneration,
+  saveGenerationOutputs,
+  updateGenerationStatus,
+} from '../lib/generationService';
 import { supabase } from '../lib/supabase';
 
 type ProductData = {
@@ -45,6 +51,7 @@ export default function Results() {
   const [errorMsg, setErrorMsg] = useState('');
   const [approvingId, setApprovingId] = useState<string | null>(null);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [regenerating, setRegenerating] = useState(false);
 
   useEffect(() => {
     if (!id) {
@@ -256,6 +263,140 @@ export default function Results() {
     }
   }
 
+  async function regenerate() {
+    if (!project || regenerating) return;
+
+    const product = Array.isArray(project.products)
+      ? project.products[0]
+      : project.products;
+
+    if (!product?.image_url) {
+      setErrorMsg('Original product image is missing.');
+      return;
+    }
+
+    setRegenerating(true);
+    setErrorMsg('');
+
+    let newGenerationId: string | null = null;
+
+    try {
+      // 1. Create a brand-new generation.
+      // Previous generations remain in the database.
+      const generation = await createGeneration({
+        projectId: project.id,
+        prompt:
+          `${product.name} | ` +
+          `${project.space || ''} | ` +
+          `${project.style || ''} | ` +
+          `${project.mood || ''} | ` +
+          `${project.aspect_ratio || ''}`,
+        model: 'black-forest-labs/FLUX.2-pro',
+      });
+
+      const createdGenerationId = generation.id as string;
+      newGenerationId = createdGenerationId;
+
+      await updateGenerationStatus(
+        createdGenerationId,
+        'processing'
+      );
+
+      // 2. Generate four new visuals using the same original product.
+      const { data, error } =
+        await supabase.functions.invoke(
+          'generate-visual',
+          {
+            body: {
+              image_url: product.image_url,
+              space: project.space,
+              style: project.style,
+              mood: project.mood,
+              ratio: project.aspect_ratio,
+              name: product.name,
+            },
+          }
+        );
+
+      if (error) {
+        throw error;
+      }
+
+      const imageUrls: string[] =
+        Array.isArray(data?.images)
+          ? data.images
+              .map((item: any) => item?.url || item)
+              .filter(Boolean)
+              .slice(0, 4)
+          : [];
+
+      if (!imageUrls.length) {
+        throw new Error(
+          'AI returned no regenerated images.'
+        );
+      }
+
+      // 3. Save the new image set.
+      await saveGenerationOutputs(
+        createdGenerationId,
+        imageUrls
+      );
+
+      await updateGenerationStatus(
+        createdGenerationId,
+        'completed'
+      );
+
+      // 4. Load the newly saved rows.
+      const {
+        data: newOutputs,
+        error: outputsError,
+      } = await supabase
+        .from('generation_outputs')
+        .select(
+          'id, generation_id, image_url, approved, created_at'
+        )
+        .eq('generation_id', createdGenerationId)
+        .order('created_at', { ascending: true });
+
+      if (outputsError) {
+        throw new Error(
+          `Unable to load regenerated images: ${outputsError.message}`
+        );
+      }
+
+      setGenerationId(createdGenerationId);
+
+      setOutputs(
+        (newOutputs ?? []) as GenerationOutput[]
+      );
+    } catch (error) {
+      console.error(error);
+
+      if (newGenerationId) {
+        try {
+          await updateGenerationStatus(
+            newGenerationId,
+            'failed'
+          );
+        } catch (statusError) {
+          console.error(
+            'Unable to mark generation failed:',
+            statusError
+          );
+        }
+      }
+
+      setErrorMsg(
+        error instanceof Error
+          ? error.message
+          : 'Unable to regenerate visuals.'
+      );
+    } finally {
+      setRegenerating(false);
+    }
+  }
+
   if (loading) {
     return <div className="empty">Loading project...</div>;
   }
@@ -293,6 +434,25 @@ export default function Results() {
             {project.aspect_ratio || '—'}
           </p>
         </div>
+
+        <button
+          type="button"
+          className="btn"
+          onClick={regenerate}
+          disabled={regenerating}
+        >
+          {regenerating ? (
+            <>
+              <Loader2 size={16} />
+              Generating 4 visuals...
+            </>
+          ) : (
+            <>
+              <RefreshCw size={16} />
+              Regenerate
+            </>
+          )}
+        </button>
       </header>
 
       {errorMsg && (
@@ -319,7 +479,8 @@ export default function Results() {
           outputs.map((output, index) => {
             const isApproved = Boolean(output.approved);
             const isApproving = approvingId === output.id;
-            const isDownloading = downloadingId === output.id;
+            const isDownloading =
+              downloadingId === output.id;
 
             return (
               <article
@@ -345,9 +506,13 @@ export default function Results() {
                         ? 'btn primary'
                         : 'btn'
                     }
-                    onClick={() => approveOutput(output.id)}
+                    onClick={() =>
+                      approveOutput(output.id)
+                    }
                     disabled={
-                      Boolean(approvingId) || isApproved
+                      Boolean(approvingId) ||
+                      isApproved ||
+                      regenerating
                     }
                   >
                     {isApproving ? (
@@ -375,7 +540,10 @@ export default function Results() {
                         productName
                       )
                     }
-                    disabled={Boolean(downloadingId)}
+                    disabled={
+                      Boolean(downloadingId) ||
+                      regenerating
+                    }
                   >
                     {isDownloading ? (
                       <>
