@@ -28,6 +28,12 @@ export type GenerateVisualInput = {
   referenceImageUrl?: string | null;
   referenceMode?: 'product' | 'visual';
 
+  variationType?:
+    | 'scene'
+    | 'lighting'
+    | 'camera'
+    | 'creative';
+
   space?: string | null;
   style?: string | null;
   mood?: string | null;
@@ -118,15 +124,18 @@ export async function generateVisualVersion(
     //   selected AI visual signed URL -> use directly
     //
     // The original product Storage path remains unchanged.
+    const originalProductImageUrl =
+      await resolveProductImageUrl(
+        input.productImagePath
+      );
+
     const imageUrl =
       input.referenceMode === 'visual' &&
       input.referenceImageUrl
         ? await resolveAIOutputUrl(
             input.referenceImageUrl
           )
-        : await resolveProductImageUrl(
-            input.productImagePath
-          );
+        : originalProductImageUrl;
 
     // 3. Call AI Edge Function
     const {
@@ -138,8 +147,14 @@ export async function generateVisualVersion(
         body: {
           image_url: imageUrl,
 
+          original_product_image_url:
+            originalProductImageUrl,
+
           reference_mode:
             input.referenceMode || 'product',
+
+          variation_type:
+            input.variationType || 'creative',
 
           project_id:
             input.projectId,

@@ -122,6 +122,11 @@ export default function Results() {
   const [customPrompt, setCustomPrompt] =
     useState('');
 
+  const [cameraPreset, setCameraPreset] =
+    useState<
+      'front' | 'left_three_quarter' | 'right_three_quarter' | 'hero_close'
+    >('front');
+
   const [generatingMore, setGeneratingMore] =
     useState(false);
 
@@ -1077,6 +1082,9 @@ export default function Results() {
             ? selectedOutput?.image_url
             : undefined,
 
+        variationType:
+          variationType,
+
         space:
           project.space,
 
@@ -1088,6 +1096,11 @@ export default function Results() {
 
         ratio:
           project.aspect_ratio,
+
+        camera:
+          variationType === 'camera'
+            ? cameraPreset
+            : undefined,
 
         customPrompt:
           variationInstruction,
@@ -1170,7 +1183,10 @@ export default function Results() {
     const instruction =
       customPrompt.trim();
 
-    if (!instruction) {
+    if (
+      !instruction &&
+      variationType !== 'camera'
+    ) {
       setErrorMsg(
         'Hãy nhập yêu cầu cho phiên bản mới.'
       );
@@ -1306,245 +1322,6 @@ export default function Results() {
           )}
         </button>
       </header>
-
-      {shortlistItems.length > 0 && (
-        <section
-          className="panel"
-          style={{
-            marginBottom: 28,
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent:
-                'space-between',
-              gap: 16,
-              marginBottom: 18,
-            }}
-          >
-            <div>
-              <p className="eyebrow">
-                PHƯƠNG ÁN ĐÃ CHỌN
-              </p>
-
-              <h2>
-                Danh sách phương án ưu tiên
-              </h2>
-
-              <div
-                style={{
-                  marginTop: 4,
-                  opacity: 0.65,
-                  fontSize: 13,
-                }}
-              >
-                {shortlistItems.length}{' '}
-                phương án từ tất cả phiên bản
-              </div>
-            </div>
-          </div>
-
-          <div className="shortlistGrid">
-            {shortlistItems.map(
-              (item) => {
-                const isCompared =
-                  compareItems.some(
-                    (entry) =>
-                      entry.outputId ===
-                      item.id
-                  );
-
-                const isRemoving =
-                  shortlistingId ===
-                  item.id;
-
-                return (
-                  <article
-                    className={`result shortlistCard ${
-                      item.approved
-                        ? 'approvedResult'
-                        : ''
-                    }`}
-                    key={item.id}
-                  >
-                    <img
-                      src={item.image_url}
-                      alt={`Version ${item.versionNumber} visual ${item.visualNumber}`}
-                    />
-
-                    <div className="shortlistBody">
-                      <div className="shortlistTitle">
-                        <b>
-                          Phiên bản{' '}
-                          {item.versionNumber}
-                          {' · '}
-                          Ảnh{' '}
-                          {item.visualNumber}
-                        </b>
-
-                        {item.approved && (
-                          <span className="shortlistApproved">
-                            ✓ Đã duyệt
-                          </span>
-                        )}
-                      </div>
-
-                      <div className="shortlistPrimaryActions">
-
-                      <button
-                        type="button"
-                        className="btn"
-                        disabled={busy}
-                        onClick={() =>
-                          useShortlistAsReference(
-                            item
-                          )
-                        }
-                      >
-                        Dùng làm mẫu
-                      </button>
-
-                      <button
-                        type="button"
-                        className={
-                          isCompared
-                            ? 'btn primary'
-                            : 'btn'
-                        }
-                        disabled={busy}
-                        onClick={() =>
-                          toggleCompareShortlistItem(
-                            item
-                          )
-                        }
-                      >
-                        {isCompared
-                          ? 'Đang so sánh'
-                          : 'So sánh'}
-                      </button>
-
-                      <button
-                        type="button"
-                        className={
-                          item.finalist
-                            ? 'btn primary'
-                            : 'btn'
-                        }
-                        disabled={busy}
-                        onClick={() =>
-                          toggleFinalist(
-                            item
-                          )
-                        }
-                      >
-                        {item.finalist
-                          ? '★ Ứng viên cuối'
-                          : '☆ Chọn ứng viên cuối'}
-                      </button>
-                      </div>
-
-                      <div className="shortlistDecisionGrid">
-
-                      <label
-                        style={{
-                          display: 'grid',
-                          gap: 6,
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: 12,
-                            opacity: 0.65,
-                          }}
-                        >
-                          Ưu tiên
-                        </span>
-
-                        <input
-                          type="number"
-                          min="1"
-                          defaultValue={
-                            item.shortlist_rank ??
-                            ''
-                          }
-                          onBlur={(event) =>
-                            updateShortlistRank(
-                              item,
-                              event.target.value
-                            )
-                          }
-                          disabled={busy}
-                        />
-                      </label>
-
-                      <label
-                        style={{
-                          display: 'grid',
-                          gap: 6,
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: 12,
-                            opacity: 0.65,
-                          }}
-                        >
-                          Ghi chú
-                        </span>
-
-                        <textarea
-                          defaultValue={
-                            item.shortlist_note ??
-                            ''
-                          }
-                          rows={4}
-                          placeholder="Ví dụ: ánh sáng đẹp, tỷ lệ đèn phù hợp, cần chỉnh nền..."
-                          onBlur={(event) =>
-                            updateShortlistNote(
-                              item,
-                              event.target.value
-                            )
-                          }
-                          disabled={busy}
-                        />
-                      </label>
-
-                      </div>
-
-                      <button
-                        type="button"
-                        className="btn"
-                        disabled={
-                          busy ||
-                          Boolean(
-                            shortlistingId
-                          ) ||
-                          Boolean(
-                            item.approved
-                          )
-                        }
-                        onClick={() =>
-                          removeShortlistItem(
-                            item
-                          )
-                        }
-                      >
-                        {isRemoving
-                          ? 'Đang lưu...'
-                          : item.approved
-                          ? 'Đã duyệt'
-                          : 'Bỏ khỏi danh sách'}
-                      </button>
-                    </div>
-                  </article>
-                );
-              }
-            )}
-          </div>
-        </section>
-      )}
 
       {generations.length > 0 && (
         <section
@@ -1963,7 +1740,7 @@ export default function Results() {
                   setReferenceMode('visual')
                 }
               >
-                Selected AI visual
+                Ảnh AI đã chọn
               </button>
 
               <button
@@ -1978,7 +1755,7 @@ export default function Results() {
                   setReferenceMode('product')
                 }
               >
-                Original product
+                Sản phẩm gốc
               </button>
             </div>
           </div>
@@ -2021,6 +1798,43 @@ export default function Results() {
             </div>
           </div>
 
+          {variationType === 'camera' && (
+            <div>
+              <b>Góc chụp</b>
+
+              <div className="chips" style={{ marginTop: 10 }}>
+                {[
+                  ['front', 'Chính diện'],
+                  ['left_three_quarter', '3/4 trái'],
+                  ['right_three_quarter', '3/4 phải'],
+                  ['hero_close', 'Cận cảnh đèn'],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={
+                      cameraPreset === value
+                        ? 'selected'
+                        : ''
+                    }
+                    disabled={busy}
+                    onClick={() =>
+                      setCameraPreset(
+                        value as
+                          | 'front'
+                          | 'left_three_quarter'
+                          | 'right_three_quarter'
+                          | 'hero_close'
+                      )
+                    }
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div>
             <b>Yêu cầu sáng tạo</b>
 
@@ -2049,7 +1863,11 @@ export default function Results() {
               onClick={generateMore}
               disabled={
                 busy ||
-                !customPrompt.trim() ||
+                (
+                  // For camera variation, allow empty prompt when using AI visual as reference
+                  !(variationType === 'camera' && referenceMode === 'visual' && selectedOutputId) &&
+                  !customPrompt.trim()
+                ) ||
                 (
                   referenceMode === 'visual' &&
                   !selectedOutputId
@@ -2080,7 +1898,7 @@ export default function Results() {
 
       {loadingVersion ? (
         <div className="empty">
-          Loading version...
+          Đang tải phiên bản...
         </div>
       ) : (
         <div className="resultGrid">

@@ -71,6 +71,26 @@ serve(async (req) => {
       );
     }
 
+    const referenceMode =
+      body.reference_mode || 'product';
+
+    const referenceImages =
+      referenceMode === 'visual' &&
+      body.original_product_image_url
+        ? [
+            body.original_product_image_url,
+            body.image_url,
+          ]
+        : [
+            body.image_url,
+          ];
+
+    const variationType =
+      body.variation_type || 'creative';
+
+    const cameraPreset =
+      body.camera || '';
+
     const prompt = buildLightingPrompt({
       name: body.name,
       space: body.space,
@@ -84,6 +104,12 @@ serve(async (req) => {
       materials: body.materials,
       custom_direction:
         body.custom_direction,
+
+      reference_mode:
+        referenceMode,
+
+      variation_type:
+        variationType,
 
       // Backward compatibility.
       custom_prompt:
@@ -121,8 +147,8 @@ serve(async (req) => {
           response_format:
             'url',
 
-          image_url:
-            body.image_url,
+          reference_images:
+            referenceImages,
         }),
       }
     );
