@@ -20,6 +20,12 @@ import {
   DEFAULT_IMAGE_MODEL,
 } from '../lib/generationWorkflow';
 
+
+import {
+  approveGenerationOutput,
+  updateOutputShortlist,
+} from '../lib/generationService';
+
 import {
   resolveProductImageUrl,
   resolveAIOutputUrl,
@@ -56,6 +62,7 @@ type GenerationOutput = {
   generation_id: string;
   image_url: string;
   approved: boolean | null;
+  shortlisted: boolean;
   created_at: string;
 };
 
@@ -89,6 +96,9 @@ export default function Results() {
     useState('');
 
   const [approvingId, setApprovingId] =
+    useState<string | null>(null);
+
+  const [shortlistingId, setShortlistingId] =
     useState<string | null>(null);
 
   const [downloadingId, setDownloadingId] =
@@ -138,7 +148,7 @@ export default function Results() {
       await supabase
         .from('generation_outputs')
         .select(
-          'id, generation_id, image_url, approved, created_at'
+          'id, generation_id, image_url, approved, shortlisted, created_at'
         )
         .eq(
           'generation_id',
@@ -354,6 +364,59 @@ export default function Results() {
     }
   }
 
+  async function toggleShortlist(
+    output: GenerationOutput
+  ) {
+    if (shortlistingId) {
+      return;
+    }
+
+    const nextValue =
+      !Boolean(output.shortlisted);
+
+    setShortlistingId(
+      output.id
+    );
+
+    setErrorMsg('');
+
+    try {
+      await updateOutputShortlist(
+        output.id,
+        nextValue
+      );
+
+      setOutputs(
+        (current) =>
+          current.map(
+            (item) =>
+              item.id === output.id
+                ? {
+                    ...item,
+                    shortlisted:
+                      nextValue,
+                  }
+                : item
+          )
+      );
+
+    } catch (error) {
+      console.error(
+        error
+      );
+
+      setErrorMsg(
+        error instanceof Error
+          ? error.message
+          : 'Unable to update shortlist.'
+      );
+    } finally {
+      setShortlistingId(
+        null
+      );
+    }
+  }
+
   async function approveOutput(
     outputId: string
   ) {
@@ -372,78 +435,10 @@ export default function Results() {
     setErrorMsg('');
 
     try {
-      // Approval belongs to the project, not only
-      // the currently viewed generation.
-      const {
-        data: projectGenerations,
-        error: generationsError,
-      } = await supabase
-        .from('generations')
-        .select('id')
-        .eq(
-          'project_id',
-          project.id
-        );
-
-      if (generationsError) {
-        throw new Error(
-          `Unable to load project generations: ${generationsError.message}`
-        );
-      }
-
-      const projectGenerationIds =
-        (projectGenerations ?? [])
-          .map(
-            (generation) =>
-              generation.id
-          )
-          .filter(Boolean);
-
-      if (projectGenerationIds.length) {
-        const {
-          error: resetError,
-        } = await supabase
-          .from(
-            'generation_outputs'
-          )
-          .update({
-            approved: false,
-          })
-          .in(
-            'generation_id',
-            projectGenerationIds
-          );
-
-        if (resetError) {
-          throw new Error(
-            `Unable to reset approval: ${resetError.message}`
-          );
-        }
-      }
-
-      const {
-        error: approveError,
-      } = await supabase
-        .from(
-          'generation_outputs'
-        )
-        .update({
-          approved: true,
-        })
-        .eq(
-          'id',
-          outputId
-        )
-        .eq(
-          'generation_id',
-          generationId
-        );
-
-      if (approveError) {
-        throw new Error(
-          `Unable to approve image: ${approveError.message}`
-        );
-      }
+      await approveGenerationOutput(
+        outputId,
+        project.id
+      );
 
       await updateProjectStatus(
         project.id,
@@ -468,6 +463,12 @@ export default function Results() {
               approved:
                 output.id ===
                 outputId,
+
+              shortlisted:
+                output.id ===
+                outputId
+                  ? true
+                  : output.shortlisted,
             })
           )
       );
@@ -1496,6 +1497,15 @@ export default function Results() {
                   downloadingId ===
                   output.id;
 
+                const isShortlisting =
+                  shortlistingId ===
+                  output.id;
+
+                const isShortlisted =
+                  Boolean(
+                    output.shortlisted
+                  );
+
                 const isSelected =
                   selectedOutputId ===
                   output.id;
@@ -1571,6 +1581,33 @@ export default function Results() {
                         {isSelected
                           ? 'Selected'
                           : 'Select'}
+                      </button>
+
+                      <button
+                        type="button"
+                        className={
+                          isShortlisted
+                            ? 'btn primary'
+                            : 'btn'
+                        }
+                        onClick={() =>
+                          toggleShortlist(
+                            output
+                          )
+                        }
+                        disabled={
+                          Boolean(
+                            shortlistingId
+                          ) ||
+                          busy ||
+                          isApproved
+                        }
+                      >
+                        {isShortlisting
+                          ? 'Saving...'
+                          : isShortlisted
+                          ? '★ Shortlisted'
+                          : '☆ Shortlist'}
                       </button>
 
                       <button
