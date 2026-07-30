@@ -1047,6 +1047,7 @@ export default function Results() {
 
     const useSelectedVisual =
       !forceOriginalProduct &&
+      variationType !== 'scene' &&
       referenceMode === 'visual' &&
       Boolean(selectedOutput?.image_url);
 
@@ -1180,18 +1181,21 @@ export default function Results() {
       return;
     }
 
-    const instruction =
+    const typedInstruction =
       customPrompt.trim();
 
-    if (
-      !instruction &&
-      variationType !== 'camera'
-    ) {
-      setErrorMsg(
-        'Hãy nhập yêu cầu cho phiên bản mới.'
-      );
-      return;
-    }
+    const defaultInstruction =
+      variationType === 'scene'
+        ? 'Create a genuinely NEW premium architectural interior around the original product. The new result must visibly differ in architecture, room layout, furniture composition and spatial character from previous scenes, while preserving the exact product identity, geometry, finish, believable scale and realistic installation.'
+        : variationType === 'lighting'
+        ? 'Create a refined lighting variation of the same scene. Preserve the architecture, furniture, materials, product geometry, installation position and camera concept.'
+        : variationType === 'camera'
+        ? ''
+        : 'Create a tasteful controlled creative variation while preserving the product identity, believable scale and core visual direction.';
+
+    const instruction =
+      typedInstruction ||
+      defaultInstruction;
 
     setGeneratingMore(
       true
@@ -1836,7 +1840,7 @@ export default function Results() {
           )}
 
           <div>
-            <b>Yêu cầu sáng tạo</b>
+            <b>Yêu cầu bổ sung <span style={{ opacity: 0.55, fontWeight: 400 }}>(không bắt buộc)</span></b>
 
             <textarea
               value={customPrompt}
@@ -1846,7 +1850,7 @@ export default function Results() {
                 )
               }
               disabled={busy}
-              placeholder="Ví dụ: Giữ nguyên kiến trúc và mẫu đèn. Chuyển ánh sáng sang hoàng hôn, tăng chiều sâu không gian..."
+              placeholder="Có thể để trống. Hoặc mô tả thêm điều bạn muốn thay đổi..."
               rows={4}
               style={{
                 width: '100%',
@@ -1864,13 +1868,15 @@ export default function Results() {
               disabled={
                 busy ||
                 (
-                  // For camera variation, allow empty prompt when using AI visual as reference
-                  !(variationType === 'camera' && referenceMode === 'visual' && selectedOutputId) &&
-                  !customPrompt.trim()
-                ) ||
-                (
                   referenceMode === 'visual' &&
                   !selectedOutputId
+                ) ||
+                (
+                  variationType === 'camera' &&
+                  (
+                    referenceMode !== 'visual' ||
+                    !selectedOutputId
+                  )
                 )
               }
             >
