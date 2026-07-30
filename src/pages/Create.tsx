@@ -424,7 +424,7 @@ export default function Create() {
           />
 
           <Pick
-            title="Camera"
+            title="Góc máy"
             items={cameras}
             value={camera}
             set={setCamera}
@@ -432,7 +432,7 @@ export default function Create() {
           />
 
           <Pick
-            title="Lighting"
+            title="Ánh sáng"
             items={lightingOptions}
             value={lighting}
             set={setLighting}
@@ -483,7 +483,7 @@ export default function Create() {
           </div>
 
           <div className="pick">
-            <b>Creative direction</b>
+            <b>Yêu cầu sáng tạo</b>
 
             <textarea
               value={customDirection}
@@ -530,7 +530,7 @@ export default function Create() {
               <>
                 <ImageIcon size={18} />
                 {statusText ||
-                  'Generating...'}
+                  'Đang tạo...'}
               </>
             ) : (
               <>

@@ -117,7 +117,7 @@ export default function Dashboard() {
         <Card
           i={<Lamp />}
           n={dashboard.productCount}
-          t="Products"
+          t="Sản phẩm"
         />
 
         <Card
@@ -129,7 +129,7 @@ export default function Dashboard() {
         <Card
           i={<FolderKanban />}
           n={dashboard.projectCount}
-          t="Projects"
+          t="Dự án"
         />
 
         <Card
@@ -234,17 +234,17 @@ function statusLabel(
       return '✓ Approved';
 
     case 'completed':
-      return 'Completed';
+      return 'Hoàn thành';
 
     case 'generating':
-      return 'Generating...';
+      return 'Đang tạo...';
 
     case 'failed':
-      return 'Generation failed';
+      return 'Tạo ảnh thất bại';
 
     case 'draft':
     default:
-      return 'Draft';
+      return 'Bản nháp';
   }
 }
 

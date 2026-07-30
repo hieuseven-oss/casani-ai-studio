@@ -24,6 +24,7 @@ import {
 import {
   approveGenerationOutput,
   updateOutputShortlist,
+  updateOutputDecisionMeta,
 } from '../lib/generationService';
 
 import {
@@ -63,6 +64,9 @@ type GenerationOutput = {
   image_url: string;
   approved: boolean | null;
   shortlisted: boolean;
+  shortlist_rank: number | null;
+  shortlist_note: string | null;
+  finalist: boolean;
   created_at: string;
 };
 
@@ -166,7 +170,7 @@ export default function Results() {
       await supabase
         .from('generation_outputs')
         .select(
-          'id, generation_id, image_url, approved, shortlisted, created_at'
+          'id, generation_id, image_url, approved, shortlisted, shortlist_rank, shortlist_note, finalist, created_at'
         )
         .in(
           'generation_id',
@@ -244,7 +248,7 @@ export default function Results() {
       await supabase
         .from('generation_outputs')
         .select(
-          'id, generation_id, image_url, approved, shortlisted, created_at'
+          'id, generation_id, image_url, approved, shortlisted, shortlist_rank, shortlist_note, finalist, created_at'
         )
         .eq(
           'generation_id',
@@ -739,6 +743,132 @@ export default function Results() {
     );
   }
 
+  async function updateShortlistRank(
+    item: ShortlistItem,
+    value: string
+  ) {
+    const rank =
+      value.trim() === ''
+        ? null
+        : Number(value);
+
+    if (
+      rank !== null &&
+      (
+        !Number.isInteger(rank) ||
+        rank < 1
+      )
+    ) {
+      setErrorMsg(
+        'Rank must be a positive whole number.'
+      );
+      return;
+    }
+
+    try {
+      await updateOutputDecisionMeta(
+        item.id,
+        {
+          shortlist_rank: rank,
+        }
+      );
+
+      setShortlistItems(
+        (current) =>
+          current.map(
+            (entry) =>
+              entry.id === item.id
+                ? {
+                    ...entry,
+                    shortlist_rank:
+                      rank,
+                  }
+                : entry
+          )
+      );
+    } catch (error) {
+      console.error(error);
+      setErrorMsg(
+        error instanceof Error
+          ? error.message
+          : 'Unable to update rank.'
+      );
+    }
+  }
+
+  async function updateShortlistNote(
+    item: ShortlistItem,
+    note: string
+  ) {
+    try {
+      await updateOutputDecisionMeta(
+        item.id,
+        {
+          shortlist_note:
+            note.trim() || null,
+        }
+      );
+
+      setShortlistItems(
+        (current) =>
+          current.map(
+            (entry) =>
+              entry.id === item.id
+                ? {
+                    ...entry,
+                    shortlist_note:
+                      note.trim() || null,
+                  }
+                : entry
+          )
+      );
+    } catch (error) {
+      console.error(error);
+      setErrorMsg(
+        error instanceof Error
+          ? error.message
+          : 'Unable to update note.'
+      );
+    }
+  }
+
+  async function toggleFinalist(
+    item: ShortlistItem
+  ) {
+    const nextValue =
+      !Boolean(item.finalist);
+
+    try {
+      await updateOutputDecisionMeta(
+        item.id,
+        {
+          finalist: nextValue,
+        }
+      );
+
+      setShortlistItems(
+        (current) =>
+          current.map(
+            (entry) =>
+              entry.id === item.id
+                ? {
+                    ...entry,
+                    finalist:
+                      nextValue,
+                  }
+                : entry
+          )
+      );
+    } catch (error) {
+      console.error(error);
+      setErrorMsg(
+        error instanceof Error
+          ? error.message
+          : 'Unable to update finalist.'
+      );
+    }
+  }
+
   async function removeShortlistItem(
     item: ShortlistItem
   ) {
@@ -1112,7 +1242,7 @@ export default function Results() {
 
   const productName =
     product?.name ||
-    'Untitled project';
+    'Dự án chưa đặt tên';
 
   const selectedVersionIndex =
     generations.findIndex(
@@ -1140,7 +1270,7 @@ export default function Results() {
             className="back"
           >
             <ArrowLeft size={16} />
-            Projects
+            Dự án
           </Link>
 
           <h1>
@@ -1166,12 +1296,12 @@ export default function Results() {
           {regenerating ? (
             <>
               <Loader2 size={16} />
-              Generating 4 visuals...
+              Đang tạo 4 phương án...
             </>
           ) : (
             <>
               <RefreshCw size={16} />
-              Regenerate
+              Tạo lại
             </>
           )}
         </button>
@@ -1196,11 +1326,11 @@ export default function Results() {
           >
             <div>
               <p className="eyebrow">
-                PROJECT SHORTLIST
+                PHƯƠNG ÁN ĐÃ CHỌN
               </p>
 
               <h2>
-                Shortlisted visuals
+                Danh sách phương án ưu tiên
               </h2>
 
               <div
@@ -1211,19 +1341,12 @@ export default function Results() {
                 }}
               >
                 {shortlistItems.length}{' '}
-                selected across all versions
+                phương án từ tất cả phiên bản
               </div>
             </div>
           </div>
 
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns:
-                'repeat(auto-fit, minmax(260px, 1fr))',
-              gap: 18,
-            }}
-          >
+          <div className="shortlistGrid">
             {shortlistItems.map(
               (item) => {
                 const isCompared =
@@ -1239,7 +1362,7 @@ export default function Results() {
 
                 return (
                   <article
-                    className={`result ${
+                    className={`result shortlistCard ${
                       item.approved
                         ? 'approvedResult'
                         : ''
@@ -1251,14 +1374,24 @@ export default function Results() {
                       alt={`Version ${item.versionNumber} visual ${item.visualNumber}`}
                     />
 
-                    <div className="resultActions">
-                      <b>
-                        Version{' '}
-                        {item.versionNumber}
-                        {' · '}
-                        Visual{' '}
-                        {item.visualNumber}
-                      </b>
+                    <div className="shortlistBody">
+                      <div className="shortlistTitle">
+                        <b>
+                          Phiên bản{' '}
+                          {item.versionNumber}
+                          {' · '}
+                          Ảnh{' '}
+                          {item.visualNumber}
+                        </b>
+
+                        {item.approved && (
+                          <span className="shortlistApproved">
+                            ✓ Đã duyệt
+                          </span>
+                        )}
+                      </div>
+
+                      <div className="shortlistPrimaryActions">
 
                       <button
                         type="button"
@@ -1270,7 +1403,7 @@ export default function Results() {
                           )
                         }
                       >
-                        Use as reference
+                        Dùng làm mẫu
                       </button>
 
                       <button
@@ -1288,9 +1421,97 @@ export default function Results() {
                         }
                       >
                         {isCompared
-                          ? 'Comparing'
-                          : 'Compare'}
+                          ? 'Đang so sánh'
+                          : 'So sánh'}
                       </button>
+
+                      <button
+                        type="button"
+                        className={
+                          item.finalist
+                            ? 'btn primary'
+                            : 'btn'
+                        }
+                        disabled={busy}
+                        onClick={() =>
+                          toggleFinalist(
+                            item
+                          )
+                        }
+                      >
+                        {item.finalist
+                          ? '★ Ứng viên cuối'
+                          : '☆ Chọn ứng viên cuối'}
+                      </button>
+                      </div>
+
+                      <div className="shortlistDecisionGrid">
+
+                      <label
+                        style={{
+                          display: 'grid',
+                          gap: 6,
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: 12,
+                            opacity: 0.65,
+                          }}
+                        >
+                          Ưu tiên
+                        </span>
+
+                        <input
+                          type="number"
+                          min="1"
+                          defaultValue={
+                            item.shortlist_rank ??
+                            ''
+                          }
+                          onBlur={(event) =>
+                            updateShortlistRank(
+                              item,
+                              event.target.value
+                            )
+                          }
+                          disabled={busy}
+                        />
+                      </label>
+
+                      <label
+                        style={{
+                          display: 'grid',
+                          gap: 6,
+                        }}
+                      >
+                        <span
+                          style={{
+                            fontSize: 12,
+                            opacity: 0.65,
+                          }}
+                        >
+                          Ghi chú
+                        </span>
+
+                        <textarea
+                          defaultValue={
+                            item.shortlist_note ??
+                            ''
+                          }
+                          rows={4}
+                          placeholder="Ví dụ: ánh sáng đẹp, tỷ lệ đèn phù hợp, cần chỉnh nền..."
+                          onBlur={(event) =>
+                            updateShortlistNote(
+                              item,
+                              event.target.value
+                            )
+                          }
+                          disabled={busy}
+                        />
+                      </label>
+
+                      </div>
 
                       <button
                         type="button"
@@ -1311,17 +1532,11 @@ export default function Results() {
                         }
                       >
                         {isRemoving
-                          ? 'Saving...'
+                          ? 'Đang lưu...'
                           : item.approved
-                          ? 'Approved'
-                          : 'Remove'}
+                          ? 'Đã duyệt'
+                          : 'Bỏ khỏi danh sách'}
                       </button>
-
-                      {item.approved && (
-                        <span>
-                          ✓ Approved
-                        </span>
-                      )}
                     </div>
                   </article>
                 );
@@ -1484,7 +1699,7 @@ export default function Results() {
               }
               disabled={busy}
             >
-              Clear Compare
+              Đóng so sánh
             </button>
           </div>
 
@@ -1588,8 +1803,8 @@ export default function Results() {
                       >
                         {selectedOutputId ===
                         item.outputId
-                          ? 'Reference selected'
-                          : 'Use as reference'}
+                          ? 'Đã chọn làm mẫu'
+                          : 'Dùng làm mẫu'}
                       </button>
 
                       <button
@@ -1640,11 +1855,11 @@ export default function Results() {
       >
         <div style={{ marginBottom: 18 }}>
           <p className="eyebrow">
-            RESULTS STUDIO
+            XƯỞNG SÁNG TẠO
           </p>
 
           <h2 style={{ marginBottom: 6 }}>
-            Create variation
+            Tạo phương án biến thể
           </h2>
 
           <div
@@ -1688,7 +1903,7 @@ export default function Results() {
 
               <div>
                 <b>
-                  Selected AI reference
+                  Phương án AI đang làm mẫu
                 </b>
 
                 <div
@@ -1715,7 +1930,7 @@ export default function Results() {
                     )
                   }
                 >
-                  Use original product instead
+                  Dùng sản phẩm gốc thay thế
                 </button>
               </div>
             </div>
@@ -1728,7 +1943,7 @@ export default function Results() {
           }}
         >
           <div>
-            <b>Reference</b>
+            <b>Nguồn tham chiếu</b>
 
             <div
               className="chips"
@@ -1769,17 +1984,17 @@ export default function Results() {
           </div>
 
           <div>
-            <b>Variation type</b>
+            <b>Kiểu biến thể</b>
 
             <div
               className="chips"
               style={{ marginTop: 10 }}
             >
               {[
-                ['scene', 'New Scene'],
-                ['lighting', 'Lighting'],
-                ['camera', 'Camera'],
-                ['creative', 'Creative'],
+                ['scene', 'Không gian mới'],
+                ['lighting', 'Ánh sáng'],
+                ['camera', 'Góc máy'],
+                ['creative', 'Sáng tạo'],
               ].map(([value, label]) => (
                 <button
                   type="button"
@@ -1807,7 +2022,7 @@ export default function Results() {
           </div>
 
           <div>
-            <b>Creative direction</b>
+            <b>Yêu cầu sáng tạo</b>
 
             <textarea
               value={customPrompt}
@@ -1844,12 +2059,12 @@ export default function Results() {
               {generatingMore ? (
                 <>
                   <Loader2 size={16} />
-                  Generating variation...
+                  Đang tạo biến thể...
                 </>
               ) : (
                 <>
                   <Sparkles size={16} />
-                  Generate Variation
+                  Tạo biến thể
                 </>
               )}
             </button>
@@ -1880,7 +2095,7 @@ export default function Results() {
 
               <div className="resultActions">
                 <span>
-                  Original product
+                  Sản phẩm gốc
                 </span>
               </div>
             </article>
@@ -1965,8 +2180,8 @@ export default function Results() {
                         disabled={busy}
                       >
                         {isCompared
-                          ? 'Comparing'
-                          : 'Compare'}
+                          ? 'Đang so sánh'
+                          : 'So sánh'}
                       </button>
 
                       <button
@@ -1987,8 +2202,8 @@ export default function Results() {
                         disabled={busy}
                       >
                         {isSelected
-                          ? 'Selected'
-                          : 'Select'}
+                          ? 'Đã chọn'
+                          : 'Chọn'}
                       </button>
 
                       <button
@@ -2012,10 +2227,10 @@ export default function Results() {
                         }
                       >
                         {isShortlisting
-                          ? 'Saving...'
+                          ? 'Đang lưu...'
                           : isShortlisted
-                          ? '★ Shortlisted'
-                          : '☆ Shortlist'}
+                          ? '★ Đã chọn'
+                          : '☆ Thêm vào danh sách'}
                       </button>
 
                       <button
@@ -2053,7 +2268,7 @@ export default function Results() {
                             Approved
                           </>
                         ) : (
-                          'Approve'
+                          'Duyệt'
                         )}
                       </button>
 

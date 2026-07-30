@@ -45,7 +45,7 @@ export default function Login() {
     <main className="loginPage">
       <section className="loginCard">
         <div className="loginBrand">CASANI AI STUDIO</div>
-        <h1>Sign in</h1>
+        <h1>Đăng nhập</h1>
         <p>Access your Casani creative workspace.</p>
 
         <form onSubmit={handleSubmit}>
@@ -74,7 +74,7 @@ export default function Login() {
           {errorMsg && <div className="loginError">{errorMsg}</div>}
 
           <button className="btn primary wide" type="submit" disabled={loading}>
-            {loading ? 'Signing in...' : 'Sign in'}
+            {loading ? 'Signing in...' : 'Đăng nhập'}
           </button>
         </form>
       </section>

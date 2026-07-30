@@ -166,7 +166,7 @@ export default function Products() {
           </p>
 
           <h1>
-            Products
+            Sản phẩm
           </h1>
         </div>
 
@@ -219,7 +219,7 @@ export default function Products() {
 
                   <small>
                     {product.category ||
-                      'Lighting'}
+                      'Ánh sáng'}
                   </small>
                 </div>
 

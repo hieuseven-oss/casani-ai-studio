@@ -84,6 +84,27 @@ export async function updateOutputShortlist(
   }
 }
 
+
+export async function updateOutputDecisionMeta(
+  outputId: string,
+  values: {
+    shortlist_rank?: number | null;
+    shortlist_note?: string | null;
+    finalist?: boolean;
+  }
+) {
+  const { error } = await supabase
+    .from('generation_outputs')
+    .update(values)
+    .eq('id', outputId);
+
+  if (error) {
+    throw new Error(
+      `Output decision metadata update failed: ${error.message}`
+    );
+  }
+}
+
 export async function approveGenerationOutput(
   outputId: string,
   projectId: string

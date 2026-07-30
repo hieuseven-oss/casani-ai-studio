@@ -49,27 +49,27 @@ const filters: {
 }[] = [
   {
     value: 'all',
-    label: 'All',
+    label: 'Tất cả',
   },
   {
     value: 'draft',
-    label: 'Draft',
+    label: 'Bản nháp',
   },
   {
     value: 'generating',
-    label: 'Generating',
+    label: 'Đang tạo',
   },
   {
     value: 'completed',
-    label: 'Completed',
+    label: 'Hoàn thành',
   },
   {
     value: 'approved',
-    label: 'Approved',
+    label: 'Đã duyệt',
   },
   {
     value: 'failed',
-    label: 'Failed',
+    label: 'Thất bại',
   },
 ];
 
@@ -322,7 +322,7 @@ export default function Projects() {
 
                   productName:
                     product?.name ||
-                    'Untitled project',
+                    'Dự án chưa đặt tên',
 
                   imageUrl,
 
@@ -529,7 +529,7 @@ export default function Projects() {
       ) : (
         <div className="empty">
           {filter === 'all'
-            ? 'No projects yet.'
+            ? 'Chưa có dự án nào.'
             : `No ${filter} projects.`}
         </div>
       )}
@@ -561,17 +561,17 @@ function statusLabel(
       return '✓ Approved';
 
     case 'completed':
-      return 'Completed';
+      return 'Hoàn thành';
 
     case 'generating':
-      return 'Generating...';
+      return 'Đang tạo...';
 
     case 'failed':
-      return 'Generation failed';
+      return 'Tạo ảnh thất bại';
 
     case 'draft':
     default:
-      return 'Draft';
+      return 'Bản nháp';
   }
 }
 
