@@ -66,6 +66,11 @@ type GenerationOutput = {
   created_at: string;
 };
 
+type ShortlistItem = GenerationOutput & {
+  versionNumber: number;
+  visualNumber: number;
+};
+
 export default function Results() {
   const { id } = useParams();
 
@@ -85,6 +90,9 @@ export default function Results() {
 
   const [outputs, setOutputs] =
     useState<GenerationOutput[]>([]);
+
+  const [shortlistItems, setShortlistItems] =
+    useState<ShortlistItem[]>([]);
 
   const [loading, setLoading] =
     useState(true);
@@ -140,6 +148,94 @@ export default function Results() {
 
   const compareMode =
     compareItems.length > 0;
+
+  async function loadProjectShortlist(
+    history: Generation[]
+  ) {
+    const generationIds =
+      history.map(
+        (generation) => generation.id
+      );
+
+    if (!generationIds.length) {
+      setShortlistItems([]);
+      return;
+    }
+
+    const { data, error } =
+      await supabase
+        .from('generation_outputs')
+        .select(
+          'id, generation_id, image_url, approved, shortlisted, created_at'
+        )
+        .in(
+          'generation_id',
+          generationIds
+        )
+        .eq(
+          'shortlisted',
+          true
+        )
+        .order(
+          'created_at',
+          { ascending: true }
+        );
+
+    if (error) {
+      throw new Error(
+        `Project shortlist load failed: ${error.message}`
+      );
+    }
+
+    const resolved =
+      await Promise.all(
+        (data ?? []).map(
+          async (output: any) => ({
+            ...output,
+            image_url:
+              await resolveAIOutputUrl(
+                output.image_url
+              ),
+          })
+        )
+      );
+
+    const visualCounters =
+      new Map<string, number>();
+
+    const items =
+      resolved.map(
+        (output: GenerationOutput) => {
+          const visualNumber =
+            (visualCounters.get(
+              output.generation_id
+            ) || 0) + 1;
+
+          visualCounters.set(
+            output.generation_id,
+            visualNumber
+          );
+
+          const versionIndex =
+            history.findIndex(
+              (generation) =>
+                generation.id ===
+                output.generation_id
+            );
+
+          return {
+            ...output,
+            versionNumber:
+              versionIndex >= 0
+                ? versionIndex + 1
+                : 1,
+            visualNumber,
+          };
+        }
+      );
+
+    setShortlistItems(items);
+  }
 
   async function loadOutputs(
     targetGenerationId: string
@@ -299,8 +395,13 @@ export default function Results() {
         if (!history.length) {
           setGenerationId(null);
           setOutputs([]);
+          setShortlistItems([]);
           return;
         }
+
+        await loadProjectShortlist(
+          history
+        );
 
         // 4. Mở version mới nhất.
         const latest =
@@ -400,6 +501,10 @@ export default function Results() {
           )
       );
 
+      await loadProjectShortlist(
+        generations
+      );
+
     } catch (error) {
       console.error(
         error
@@ -471,6 +576,10 @@ export default function Results() {
                   : output.shortlisted,
             })
           )
+      );
+
+      await loadProjectShortlist(
+        generations
       );
     } catch (error) {
       console.error(
@@ -547,6 +656,151 @@ export default function Results() {
         ];
       }
     );
+  }
+
+  async function useShortlistAsReference(
+    item: ShortlistItem
+  ) {
+    if (
+      item.generation_id !==
+      generationId
+    ) {
+      await selectVersion(
+        item.generation_id
+      );
+    }
+
+    setSelectedOutputId(
+      item.id
+    );
+
+    setReferenceMode(
+      'visual'
+    );
+
+    setTimeout(() => {
+      document
+        .getElementById(
+          'results-studio'
+        )
+        ?.scrollIntoView({
+          behavior: 'smooth',
+          block: 'start',
+        });
+    }, 100);
+  }
+
+  function toggleCompareShortlistItem(
+    item: ShortlistItem
+  ) {
+    const compareItem: CompareItem = {
+      outputId: item.id,
+      generationId:
+        item.generation_id,
+      imageUrl:
+        item.image_url,
+      approved:
+        Boolean(item.approved),
+      versionNumber:
+        item.versionNumber,
+      visualNumber:
+        item.visualNumber,
+    };
+
+    setCompareItems(
+      (current) => {
+        const exists =
+          current.some(
+            (entry) =>
+              entry.outputId ===
+              item.id
+          );
+
+        if (exists) {
+          return current.filter(
+            (entry) =>
+              entry.outputId !==
+              item.id
+          );
+        }
+
+        if (current.length >= 2) {
+          return [
+            current[1],
+            compareItem,
+          ];
+        }
+
+        return [
+          ...current,
+          compareItem,
+        ];
+      }
+    );
+  }
+
+  async function removeShortlistItem(
+    item: ShortlistItem
+  ) {
+    if (
+      shortlistingId ||
+      item.approved
+    ) {
+      return;
+    }
+
+    setShortlistingId(
+      item.id
+    );
+
+    setErrorMsg('');
+
+    try {
+      await updateOutputShortlist(
+        item.id,
+        false
+      );
+
+      setShortlistItems(
+        (current) =>
+          current.filter(
+            (entry) =>
+              entry.id !==
+              item.id
+          )
+      );
+
+      if (
+        item.generation_id ===
+        generationId
+      ) {
+        setOutputs(
+          (current) =>
+            current.map(
+              (output) =>
+                output.id === item.id
+                  ? {
+                      ...output,
+                      shortlisted:
+                        false,
+                    }
+                  : output
+            )
+        );
+      }
+    } catch (error) {
+      console.error(error);
+
+      setErrorMsg(
+        error instanceof Error
+          ? error.message
+          : 'Unable to remove shortlist item.'
+      );
+    } finally {
+      setShortlistingId(
+        null
+      );
+    }
   }
 
   function removeCompareItem(
@@ -922,6 +1176,160 @@ export default function Results() {
           )}
         </button>
       </header>
+
+      {shortlistItems.length > 0 && (
+        <section
+          className="panel"
+          style={{
+            marginBottom: 28,
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent:
+                'space-between',
+              gap: 16,
+              marginBottom: 18,
+            }}
+          >
+            <div>
+              <p className="eyebrow">
+                PROJECT SHORTLIST
+              </p>
+
+              <h2>
+                Shortlisted visuals
+              </h2>
+
+              <div
+                style={{
+                  marginTop: 4,
+                  opacity: 0.65,
+                  fontSize: 13,
+                }}
+              >
+                {shortlistItems.length}{' '}
+                selected across all versions
+              </div>
+            </div>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns:
+                'repeat(auto-fit, minmax(260px, 1fr))',
+              gap: 18,
+            }}
+          >
+            {shortlistItems.map(
+              (item) => {
+                const isCompared =
+                  compareItems.some(
+                    (entry) =>
+                      entry.outputId ===
+                      item.id
+                  );
+
+                const isRemoving =
+                  shortlistingId ===
+                  item.id;
+
+                return (
+                  <article
+                    className={`result ${
+                      item.approved
+                        ? 'approvedResult'
+                        : ''
+                    }`}
+                    key={item.id}
+                  >
+                    <img
+                      src={item.image_url}
+                      alt={`Version ${item.versionNumber} visual ${item.visualNumber}`}
+                    />
+
+                    <div className="resultActions">
+                      <b>
+                        Version{' '}
+                        {item.versionNumber}
+                        {' · '}
+                        Visual{' '}
+                        {item.visualNumber}
+                      </b>
+
+                      <button
+                        type="button"
+                        className="btn"
+                        disabled={busy}
+                        onClick={() =>
+                          useShortlistAsReference(
+                            item
+                          )
+                        }
+                      >
+                        Use as reference
+                      </button>
+
+                      <button
+                        type="button"
+                        className={
+                          isCompared
+                            ? 'btn primary'
+                            : 'btn'
+                        }
+                        disabled={busy}
+                        onClick={() =>
+                          toggleCompareShortlistItem(
+                            item
+                          )
+                        }
+                      >
+                        {isCompared
+                          ? 'Comparing'
+                          : 'Compare'}
+                      </button>
+
+                      <button
+                        type="button"
+                        className="btn"
+                        disabled={
+                          busy ||
+                          Boolean(
+                            shortlistingId
+                          ) ||
+                          Boolean(
+                            item.approved
+                          )
+                        }
+                        onClick={() =>
+                          removeShortlistItem(
+                            item
+                          )
+                        }
+                      >
+                        {isRemoving
+                          ? 'Saving...'
+                          : item.approved
+                          ? 'Approved'
+                          : 'Remove'}
+                      </button>
+
+                      {item.approved && (
+                        <span>
+                          ✓ Approved
+                        </span>
+                      )}
+                    </div>
+                  </article>
+                );
+              }
+            )}
+          </div>
+        </section>
+      )}
 
       {generations.length > 0 && (
         <section
