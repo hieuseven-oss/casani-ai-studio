@@ -104,7 +104,10 @@ export async function generateVisualVersion(
         projectId: input.projectId,
         prompt:
           buildGenerationPrompt(input),
-        model: DEFAULT_IMAGE_MODEL,
+        model:
+          input.variationType === 'camera'
+            ? 'black-forest-labs/FLUX.1-kontext-max'
+            : DEFAULT_IMAGE_MODEL,
       });
 
     generationId =
@@ -137,12 +140,35 @@ export async function generateVisualVersion(
           )
         : originalProductImageUrl;
 
-    // 3. Call AI Edge Function
+    // 3. Route generation engine.
+    //
+    // Camera:
+    //   selected AI visual -> Kontext Max camera editor
+    //
+    // Everything else:
+    //   existing FLUX.2 Pro pipeline
+    const functionName =
+      input.variationType === 'camera'
+        ? 'camera-visual'
+        : 'generate-visual';
+
+    if (
+      input.variationType === 'camera' &&
+      (
+        input.referenceMode !== 'visual' ||
+        !input.referenceImageUrl
+      )
+    ) {
+      throw new Error(
+        'Camera variation requires a selected AI visual.'
+      );
+    }
+
     const {
       data,
       error,
     } = await supabase.functions.invoke(
-      'generate-visual',
+      functionName,
       {
         body: {
           image_url: imageUrl,
@@ -155,6 +181,12 @@ export async function generateVisualVersion(
 
           variation_type:
             input.variationType || 'creative',
+
+          // V11 Camera Set:
+          // one generation, three independent views
+          // from the same Camera Master.
+          camera_set:
+            input.variationType === 'camera',
 
           project_id:
             input.projectId,

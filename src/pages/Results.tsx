@@ -134,6 +134,19 @@ export default function Results() {
   const [selectedOutputId, setSelectedOutputId] =
     useState<string | null>(null);
 
+  // Camera Master V10.2
+  //
+  // Independent from the Version currently being viewed.
+  // Camera variations must always branch from this stable
+  // visual instead of chaining from the latest camera output.
+  const [cameraMaster, setCameraMaster] =
+    useState<{
+      outputId?: string;
+      generationId: string;
+      imageUrl: string;
+      label: string;
+    } | null>(null);
+
   const [referenceMode, setReferenceMode] =
     useState<'visual' | 'product'>('visual');
 
@@ -300,6 +313,7 @@ export default function Results() {
     setSelectedOutputId(
       preferred?.id || null
     );
+
   }
 
   async function loadGenerationHistory(
@@ -1045,11 +1059,20 @@ export default function Results() {
           output.id === selectedOutputId
       );
 
+    const cameraReference =
+      variationType === 'camera'
+        ? cameraMaster
+        : null;
+
+    const referenceImageUrl =
+      cameraReference?.imageUrl ||
+      selectedOutput?.image_url;
+
     const useSelectedVisual =
       !forceOriginalProduct &&
       variationType !== 'scene' &&
       referenceMode === 'visual' &&
-      Boolean(selectedOutput?.image_url);
+      Boolean(referenceImageUrl);
 
     const variationInstruction =
       instruction?.trim()
@@ -1080,7 +1103,7 @@ export default function Results() {
 
         referenceImageUrl:
           useSelectedVisual
-            ? selectedOutput?.image_url
+            ? referenceImageUrl
             : undefined,
 
         variationType:
@@ -1803,38 +1826,188 @@ export default function Results() {
           </div>
 
           {variationType === 'camera' && (
-            <div>
-              <b>Góc chụp</b>
+            <div
+              style={{
+                display: 'grid',
+                gap: 14,
+              }}
+            >
+              <div>
+                <b>Camera Master</b>
 
-              <div className="chips" style={{ marginTop: 10 }}>
-                {[
-                  ['front', 'Chính diện'],
-                  ['left_three_quarter', '3/4 trái'],
-                  ['right_three_quarter', '3/4 phải'],
-                  ['hero_close', 'Cận cảnh đèn'],
-                ].map(([value, label]) => (
+                <div
+                  style={{
+                    marginTop: 8,
+                    padding: 12,
+                    border:
+                      '1px solid var(--line, #d8d0c5)',
+                    borderRadius: 10,
+                  }}
+                >
+                  {cameraMaster ? (
+                    <>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 12,
+                        }}
+                      >
+                        <img
+                          src={cameraMaster.imageUrl}
+                          alt="Camera Master"
+                          style={{
+                            width: 92,
+                            height: 92,
+                            objectFit: 'cover',
+                            borderRadius: 8,
+                            flexShrink: 0,
+                          }}
+                        />
+
+                        <div>
+                          <b>
+                            {cameraMaster.label}
+                          </b>
+
+                          <div
+                            style={{
+                              marginTop: 4,
+                              fontSize: 13,
+                              opacity: 0.65,
+                            }}
+                          >
+                            Camera Master cố định.
+                            Chuyển Version sẽ không thay đổi ảnh này.
+                          </div>
+
+                          <div
+                            style={{
+                              marginTop: 4,
+                              fontSize: 12,
+                              opacity: 0.5,
+                            }}
+                          >
+                            Master Generation: {cameraMaster.generationId}
+                          </div>
+                        </div>
+                      </div>
+                    </>
+                  ) : (
+                    <div
+                      style={{
+                        fontSize: 13,
+                        opacity: 0.65,
+                      }}
+                    >
+                      Chưa có Camera Master.
+                      Hãy chọn một ảnh chính diện,
+                      sau đó đặt làm Camera Master.
+                    </div>
+                  )}
+
                   <button
-                    key={value}
                     type="button"
-                    className={
-                      cameraPreset === value
-                        ? 'selected'
-                        : ''
+                    className="btn"
+                    style={{
+                      marginTop: 10,
+                    }}
+                    disabled={
+                      busy ||
+                      !selectedOutput
                     }
-                    disabled={busy}
-                    onClick={() =>
+                    onClick={() => {
+                      if (
+                        !selectedOutput ||
+                        !generationId
+                      ) {
+                        return;
+                      }
+
+                      setCameraMaster({
+                        generationId,
+
+                        imageUrl:
+                          selectedOutput.image_url,
+
+                        label:
+                          `Version ${
+                            selectedVersionIndex >= 0
+                              ? selectedVersionIndex + 1
+                              : ''
+                          } · Chính diện`,
+                      });
+
                       setCameraPreset(
-                        value as
-                          | 'front'
-                          | 'left_three_quarter'
-                          | 'right_three_quarter'
-                          | 'hero_close'
-                      )
-                    }
+                        'front'
+                      );
+
+                      setReferenceMode(
+                        'visual'
+                      );
+                    }}
                   >
-                    {label}
+                    Đặt ảnh đang chọn làm Camera Master
                   </button>
-                ))}
+                </div>
+              </div>
+
+              <div>
+                <b>Bộ góc máy</b>
+
+                <div
+                  style={{
+                    marginTop: 10,
+                    padding: 12,
+                    border:
+                      '1px solid var(--line, #d8d0c5)',
+                    borderRadius: 10,
+                  }}
+                >
+                  <div
+                    style={{
+                      fontSize: 13,
+                      lineHeight: 1.6,
+                    }}
+                  >
+                    Từ Camera Master chính diện,
+                    hệ thống sẽ tạo cùng một không gian
+                    ở 3 góc bổ sung:
+                  </div>
+
+                  <div
+                    style={{
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                      gap: 8,
+                      marginTop: 10,
+                    }}
+                  >
+                    <span className="selected">
+                      3/4 trái
+                    </span>
+
+                    <span className="selected">
+                      3/4 phải
+                    </span>
+
+                    <span className="selected">
+                      Cận cảnh đèn
+                    </span>
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: 10,
+                      fontSize: 12,
+                      opacity: 0.6,
+                    }}
+                  >
+                    Cả 3 ảnh sẽ dùng trực tiếp
+                    cùng một Camera Master.
+                    Không tạo nối tiếp từ ảnh trước.
+                  </div>
+                </div>
               </div>
             </div>
           )}
@@ -1875,7 +2048,14 @@ export default function Results() {
                   variationType === 'camera' &&
                   (
                     referenceMode !== 'visual' ||
-                    !selectedOutputId
+                    (
+                      cameraPreset !== 'front' &&
+                      !cameraMaster
+                    ) ||
+                    (
+                      cameraPreset === 'front' &&
+                      !selectedOutputId
+                    )
                   )
                 )
               }
@@ -1883,12 +2063,16 @@ export default function Results() {
               {generatingMore ? (
                 <>
                   <Loader2 size={16} />
-                  Đang tạo biến thể...
+                  {variationType === 'camera'
+                    ? 'Đang tạo bộ góc máy...'
+                    : 'Đang tạo biến thể...'}
                 </>
               ) : (
                 <>
                   <Sparkles size={16} />
-                  Tạo biến thể
+                  {variationType === 'camera'
+                    ? 'Tạo bộ góc máy'
+                    : 'Tạo biến thể'}
                 </>
               )}
             </button>
