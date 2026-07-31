@@ -58,6 +58,29 @@ export async function saveGenerationOutputs(
   }
 }
 
+export async function updateGenerationProductionReady(
+  generationId: string,
+  productionReady: boolean
+) {
+  const { error } = await supabase
+    .from('generations')
+    .update({
+      production_ready:
+        productionReady,
+      production_ready_at:
+        productionReady
+          ? new Date().toISOString()
+          : null,
+    })
+    .eq('id', generationId);
+
+  if (error) {
+    throw new Error(
+      `Generation production state update failed: ${error.message}`
+    );
+  }
+}
+
 export async function updateGenerationStatus(
   generationId: string,
   status: 'queued' | 'processing' | 'completed' | 'failed'

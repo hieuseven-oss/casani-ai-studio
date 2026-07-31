@@ -25,6 +25,7 @@ import {
   approveGenerationOutput,
   updateOutputShortlist,
   updateOutputDecisionMeta,
+  updateGenerationProductionReady,
 } from '../lib/generationService';
 
 import {
@@ -55,6 +56,8 @@ type Generation = {
   id: string;
   status: string | null;
   model: string | null;
+  production_ready: boolean;
+  production_ready_at: string | null;
   created_at: string;
 };
 
@@ -187,6 +190,9 @@ export default function Results() {
     useState<string | null>(null);
 
   const [downloadingCameraSet, setDownloadingCameraSet] =
+    useState(false);
+
+  const [updatingProductionReady, setUpdatingProductionReady] =
     useState(false);
 
   const [regenerating, setRegenerating] =
@@ -402,7 +408,7 @@ export default function Results() {
     } = await supabase
       .from('generations')
       .select(
-        'id, status, model, created_at'
+        'id, status, model, production_ready, production_ready_at, created_at'
       )
       .eq(
         'project_id',
@@ -1188,6 +1194,60 @@ export default function Results() {
     }
   }
 
+  async function toggleProductionReady() {
+    if (
+      !generationId ||
+      updatingProductionReady ||
+      !hasCompleteCameraSet
+    ) {
+      return;
+    }
+
+    const nextValue =
+      !isProductionReady;
+
+    setUpdatingProductionReady(true);
+    setErrorMsg('');
+
+    try {
+      await updateGenerationProductionReady(
+        generationId,
+        nextValue
+      );
+
+      const timestamp =
+        nextValue
+          ? new Date().toISOString()
+          : null;
+
+      setGenerations(
+        (current) =>
+          current.map(
+            (generation) =>
+              generation.id === generationId
+                ? {
+                    ...generation,
+                    production_ready:
+                      nextValue,
+                    production_ready_at:
+                      timestamp,
+                  }
+                : generation
+          )
+      );
+    } catch (error) {
+      console.error(error);
+
+      setErrorMsg(
+        error instanceof Error
+          ? error.message
+          : 'Unable to update production state.'
+      );
+    } finally {
+      setUpdatingProductionReady(false);
+    }
+  }
+
   async function createNewVersion(
     instruction?: string,
     forceOriginalProduct = false
@@ -1305,6 +1365,12 @@ export default function Results() {
 
       model:
         DEFAULT_IMAGE_MODEL,
+
+      production_ready:
+        false,
+
+      production_ready_at:
+        null,
 
       created_at:
         new Date().toISOString(),
@@ -1480,6 +1546,16 @@ export default function Results() {
     currentVersionIndex >= 0
       ? currentVersionIndex + 1
       : null;
+
+  const currentGeneration =
+    currentVersionIndex >= 0
+      ? generations[currentVersionIndex]
+      : null;
+
+  const isProductionReady =
+    Boolean(
+      currentGeneration?.production_ready
+    );
 
   const cameraSetOutputs =
     outputs.filter(
@@ -2344,6 +2420,37 @@ export default function Results() {
                     ? 'Hoàn chỉnh'
                     : `${cameraSetOutputs.length}/3`}
                 </span>
+
+                <button
+                  type="button"
+                  className={
+                    isProductionReady
+                      ? 'btn primary'
+                      : 'btn'
+                  }
+                  onClick={toggleProductionReady}
+                  disabled={
+                    updatingProductionReady ||
+                    !hasCompleteCameraSet
+                  }
+                >
+                  {updatingProductionReady ? (
+                    <>
+                      <Loader2 size={16} />
+                      Đang cập nhật...
+                    </>
+                  ) : isProductionReady ? (
+                    <>
+                      <Check size={16} />
+                      Production Ready
+                    </>
+                  ) : (
+                    <>
+                      <Check size={16} />
+                      Duyệt bộ ảnh
+                    </>
+                  )}
+                </button>
 
                 <button
                   type="button"
