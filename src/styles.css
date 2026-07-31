@@ -190,3 +190,21 @@
     width:max-content;
   }
 }
+
+/* =========================================================
+   V13 Camera Set download actions
+   ========================================================= */
+
+.cameraSetHeaderActions{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+  justify-content:flex-end;
+}
+
+@media(max-width:560px){
+  .cameraSetHeaderActions{
+    justify-content:flex-start;
+  }
+}

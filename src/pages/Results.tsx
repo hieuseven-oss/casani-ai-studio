@@ -186,6 +186,9 @@ export default function Results() {
   const [downloadingId, setDownloadingId] =
     useState<string | null>(null);
 
+  const [downloadingCameraSet, setDownloadingCameraSet] =
+    useState(false);
+
   const [regenerating, setRegenerating] =
     useState(false);
 
@@ -1096,6 +1099,92 @@ export default function Results() {
       setDownloadingId(
         null
       );
+    }
+  }
+
+  function outputRoleFileName(
+    role: string | null,
+    fallbackIndex: number
+  ) {
+    switch (role) {
+      case 'left_three_quarter':
+        return 'left-3q';
+
+      case 'right_three_quarter':
+        return 'right-3q';
+
+      case 'hero_close':
+        return 'hero-close';
+
+      case 'front':
+        return 'front';
+
+      default:
+        return `ai-visual-${fallbackIndex}`;
+    }
+  }
+
+  async function downloadCameraSet() {
+    if (
+      downloadingCameraSet ||
+      downloadingId ||
+      cameraSetOutputs.length === 0
+    ) {
+      return;
+    }
+
+    setDownloadingCameraSet(true);
+    setErrorMsg('');
+
+    try {
+      const safeName =
+        makeSafeFileName(
+          productName
+        ) || 'casani';
+
+      const versionNumber =
+        currentVersionNumber || 1;
+
+      const orderedCameraOutputs =
+        CAMERA_SET_ROLES.flatMap(
+          (role) =>
+            cameraSetOutputs.filter(
+              (output) =>
+                output.role === role
+            )
+        );
+
+      for (
+        let index = 0;
+        index < orderedCameraOutputs.length;
+        index += 1
+      ) {
+        const output =
+          orderedCameraOutputs[index];
+
+        const fileName =
+          `${safeName}` +
+          `-v${versionNumber}` +
+          `-${outputRoleFileName(
+            output.role,
+            index + 1
+          )}`;
+
+        await downloadRemoteImage(
+          output.image_url,
+          fileName
+        );
+      }
+    } catch (error) {
+      console.error(error);
+
+      setErrorMsg(
+        error instanceof Error
+          ? error.message
+          : 'Unable to download Camera Set.'
+      );
+    } finally {
+      setDownloadingCameraSet(false);
     }
   }
 
@@ -2243,17 +2332,42 @@ export default function Results() {
                 </p>
               </div>
 
-              <span
-                className={`cameraSetStatus ${
-                  hasCompleteCameraSet
-                    ? 'ready'
-                    : ''
-                }`}
-              >
-                {hasCompleteCameraSet
-                  ? 'Hoàn chỉnh'
-                  : `${cameraSetOutputs.length}/3`}
-              </span>
+              <div className="cameraSetHeaderActions">
+                <span
+                  className={`cameraSetStatus ${
+                    hasCompleteCameraSet
+                      ? 'ready'
+                      : ''
+                  }`}
+                >
+                  {hasCompleteCameraSet
+                    ? 'Hoàn chỉnh'
+                    : `${cameraSetOutputs.length}/3`}
+                </span>
+
+                <button
+                  type="button"
+                  className="btn"
+                  onClick={downloadCameraSet}
+                  disabled={
+                    downloadingCameraSet ||
+                    Boolean(downloadingId) ||
+                    !hasCompleteCameraSet
+                  }
+                >
+                  {downloadingCameraSet ? (
+                    <>
+                      <Loader2 size={16} />
+                      Đang tải bộ ảnh...
+                    </>
+                  ) : (
+                    <>
+                      <Download size={16} />
+                      Tải cả bộ
+                    </>
+                  )}
+                </button>
+              </div>
             </div>
 
             <div className="cameraSetRoles">
