@@ -41,6 +41,10 @@ function roleOrder(
       role as typeof PRODUCTION_ROLES[number]
     );
 
+  if (role === null) {
+    return -1;
+  }
+
   return index >= 0
     ? index
     : 999;
@@ -136,6 +140,7 @@ export async function getProductionSets():
               (outputs ?? [])
                 .filter(
                   (output: any) =>
+                    Boolean(output.approved) ||
                     PRODUCTION_ROLES.includes(
                       output.role
                     )
@@ -216,8 +221,135 @@ export async function getProductionSets():
       )
     );
 
-  return sets.filter(
-    (set) =>
-      set.assets.length > 0
-  );
+  const validSets =
+    sets.filter(
+      (set) =>
+        set.assets.length > 0
+    );
+
+  // V15H.2
+  // Production is grouped by PROJECT, not by generation.
+  //
+  // One project can have:
+  // - a normal generation containing the approved main image
+  // - another generation containing Camera Set outputs
+  //
+  // They must appear as ONE Production Set.
+  //
+  // generations are loaded newest first, so the first
+  // approved/main asset and first asset for each camera role
+  // are treated as the latest production choices.
+
+  const grouped =
+    new Map<string, ProductionSet>();
+
+  for (const set of validSets) {
+    const existing =
+      grouped.get(set.projectId);
+
+    if (!existing) {
+      grouped.set(
+        set.projectId,
+        {
+          ...set,
+          assets: [],
+        }
+      );
+    }
+
+    const target =
+      grouped.get(set.projectId)!;
+
+    // Keep latest metadata / representative generation.
+    if (
+      !target.productionReadyAt ||
+      (
+        set.productionReadyAt &&
+        set.productionReadyAt >
+          target.productionReadyAt
+      )
+    ) {
+      target.generationId =
+        set.generationId;
+
+      target.productionReadyAt =
+        set.productionReadyAt;
+
+      target.createdAt =
+        set.createdAt;
+    }
+
+    for (const asset of set.assets) {
+      if (asset.approved) {
+        const existingMainIndex =
+          target.assets.findIndex(
+            (item) =>
+              item.approved
+          );
+
+        if (existingMainIndex < 0) {
+          target.assets.unshift(
+            asset
+          );
+        }
+
+        continue;
+      }
+
+      if (
+        PRODUCTION_ROLES.includes(
+          asset.role as typeof PRODUCTION_ROLES[number]
+        )
+      ) {
+        const alreadyHasRole =
+          target.assets.some(
+            (item) =>
+              !item.approved &&
+              item.role === asset.role
+          );
+
+        if (!alreadyHasRole) {
+          target.assets.push(
+            asset
+          );
+        }
+      }
+    }
+  }
+
+  return Array.from(
+    grouped.values()
+  )
+    .map(
+      (set) => ({
+        ...set,
+        assets:
+          [...set.assets].sort(
+            (a, b) => {
+              if (
+                a.approved &&
+                !b.approved
+              ) {
+                return -1;
+              }
+
+              if (
+                !a.approved &&
+                b.approved
+              ) {
+                return 1;
+              }
+
+              return (
+                roleOrder(a.role) -
+                roleOrder(b.role)
+              );
+            }
+          ),
+      })
+    )
+    .filter(
+      (set) =>
+        set.assets.length > 0
+    );
 }

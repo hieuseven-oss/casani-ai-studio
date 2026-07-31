@@ -27,8 +27,13 @@ import ProductionSetCard from '../components/production/ProductionSetCard';
 
 function roleFileName(
   role: string | null,
+  approved: boolean,
   fallbackIndex: number
 ) {
+  if (approved) {
+    return 'main';
+  }
+
   switch (role) {
     case 'left_three_quarter':
       return 'left-3q';
@@ -126,6 +131,7 @@ export default function ProductionLibrary() {
           `-production` +
           `-${roleFileName(
             asset.role,
+            asset.approved,
             index + 1
           )}`;
 
@@ -162,8 +168,9 @@ export default function ProductionLibrary() {
           </h1>
 
           <p>
-            Quản lý các Camera Set đã được duyệt.
-            Đây sẽ là nguồn chính thức cho catalogue,
+            Quản lý các ảnh thành phẩm đã chọn
+            và Camera Set bổ sung khi có.
+            Đây là nguồn chính thức cho catalogue,
             website, quảng cáo và nội dung social.
           </p>
         </div>
@@ -242,8 +249,8 @@ export default function ProductionLibrary() {
               fontSize: 13,
             }}
           >
-            Hãy duyệt một Camera Set là
-            Production Ready trong Results Studio.
+            Hãy chọn một ảnh thành phẩm
+            trong Results Studio.
           </div>
         </div>
       )}

@@ -22,9 +22,14 @@ type ProductionSetCardProps = {
   downloading?: boolean;
 };
 
-function roleLabel(
-  role: string | null
+function assetLabel(
+  role: string | null,
+  approved: boolean
 ) {
+  if (approved) {
+    return 'Ảnh chính';
+  }
+
   switch (role) {
     case 'left_three_quarter':
       return '3/4 trái';
@@ -36,7 +41,7 @@ function roleLabel(
       return 'Cận cảnh đèn';
 
     default:
-      return 'Asset';
+      return 'Ảnh bổ sung';
   }
 }
 
@@ -57,14 +62,16 @@ export default function ProductionSetCard({
             >
               <img
                 src={asset.imageUrl}
-                alt={roleLabel(
-                  asset.role
+                alt={assetLabel(
+                  asset.role,
+                  asset.approved
                 )}
               />
 
               <figcaption>
-                {roleLabel(
-                  asset.role
+                {assetLabel(
+                  asset.role,
+                  asset.approved
                 )}
               </figcaption>
             </figure>

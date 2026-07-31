@@ -673,6 +673,31 @@ export default function Results() {
         'visual'
       );
 
+      await updateGenerationProductionReady(
+        generationId,
+        true
+      );
+
+      const productionTimestamp =
+        new Date().toISOString();
+
+      setGenerations(
+        (current) =>
+          current.map(
+            (generation) =>
+              generation.id ===
+              generationId
+                ? {
+                    ...generation,
+                    production_ready:
+                      true,
+                    production_ready_at:
+                      productionTimestamp,
+                  }
+                : generation
+          )
+      );
+
     } catch (error) {
       console.error(
         error
