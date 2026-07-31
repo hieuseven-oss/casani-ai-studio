@@ -29,17 +29,23 @@ export async function createGeneration({
   return data;
 }
 
+export type GenerationOutputInput = {
+  imageUrl: string;
+  role?: string | null;
+};
+
 export async function saveGenerationOutputs(
   generationId: string,
-  imageUrls: string[]
+  outputs: GenerationOutputInput[]
 ) {
-  if (!imageUrls.length) {
+  if (!outputs.length) {
     throw new Error('AI returned no images');
   }
 
-  const rows = imageUrls.map((imageUrl) => ({
+  const rows = outputs.map((output) => ({
     generation_id: generationId,
-    image_url: imageUrl,
+    image_url: output.imageUrl,
+    role: output.role ?? null,
     approved: false,
   }));
 

@@ -276,7 +276,44 @@ export async function generateVisualVersion(
       );
     }
 
-    const imageUrls: string[] =
+    const structuredOutputs =
+      Array.isArray(data?.results)
+        ? data.results
+            .map((item: any) => {
+              const imageUrl =
+                item?.image ||
+                item?.url;
+
+              if (
+                typeof imageUrl !== 'string' ||
+                !imageUrl
+              ) {
+                return null;
+              }
+
+              return {
+                imageUrl,
+                role:
+                  typeof item?.camera === 'string'
+                    ? item.camera
+                    : null,
+              };
+            })
+            .filter(
+              (
+                item: {
+                  imageUrl: string;
+                  role: string | null;
+                } | null
+              ): item is {
+                imageUrl: string;
+                role: string | null;
+              } => Boolean(item)
+            )
+            .slice(0, 4)
+        : [];
+
+    const legacyImageUrls: string[] =
       Array.isArray(data?.images)
         ? data.images
             .map(
@@ -292,16 +329,36 @@ export async function generateVisualVersion(
             .slice(0, 4)
         : [];
 
+    const outputInputs =
+      structuredOutputs.length
+        ? structuredOutputs
+        : legacyImageUrls.map(
+            (imageUrl) => ({
+              imageUrl,
+              role: null,
+            })
+          );
+
+    const imageUrls =
+      outputInputs.map(
+        (output: {
+          imageUrl: string;
+          role: string | null;
+        }) => output.imageUrl
+      );
+
     if (!imageUrls.length) {
       throw new Error(
         'AI returned no images.'
       );
     }
 
-    // 4. Persist outputs
+    // 4. Persist outputs.
+    // Camera Set keeps its semantic role.
+    // Legacy generation remains compatible with role = null.
     await saveGenerationOutputs(
       generationId,
-      imageUrls
+      outputInputs
     );
 
     await updateGenerationStatus(

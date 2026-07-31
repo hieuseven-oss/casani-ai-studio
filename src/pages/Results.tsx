@@ -62,6 +62,14 @@ type GenerationOutput = {
   id: string;
   generation_id: string;
   image_url: string;
+
+  // V12 semantic output role.
+  // Camera Set examples:
+  // left_three_quarter
+  // right_three_quarter
+  // hero_close
+  role: string | null;
+
   approved: boolean | null;
   shortlisted: boolean;
   shortlist_rank: number | null;
@@ -74,6 +82,42 @@ type ShortlistItem = GenerationOutput & {
   versionNumber: number;
   visualNumber: number;
 };
+
+function outputRoleLabel(
+  role: string | null,
+  fallbackIndex?: number
+) {
+  switch (role) {
+    case 'front':
+      return 'Chính diện';
+
+    case 'left_three_quarter':
+      return '3/4 trái';
+
+    case 'right_three_quarter':
+      return '3/4 phải';
+
+    case 'hero_close':
+      return 'Cận cảnh đèn';
+
+    case 'detail':
+      return 'Chi tiết';
+
+    case 'catalog':
+      return 'Catalogue';
+
+    case 'lifestyle':
+      return 'Lifestyle';
+
+    case 'social':
+      return 'Social';
+
+    default:
+      return fallbackIndex
+        ? `AI visual ${fallbackIndex}`
+        : 'AI visual';
+  }
+}
 
 export default function Results() {
   const { id } = useParams();
@@ -159,6 +203,10 @@ export default function Results() {
     outputId: string;
     generationId: string;
     imageUrl: string;
+
+    // V12 semantic output role
+    role: string | null;
+
     approved: boolean;
     versionNumber: number;
     visualNumber: number;
@@ -188,7 +236,7 @@ export default function Results() {
       await supabase
         .from('generation_outputs')
         .select(
-          'id, generation_id, image_url, approved, shortlisted, shortlist_rank, shortlist_note, finalist, created_at'
+          'id, generation_id, image_url, role, approved, shortlisted, shortlist_rank, shortlist_note, finalist, created_at'
         )
         .in(
           'generation_id',
@@ -266,7 +314,7 @@ export default function Results() {
       await supabase
         .from('generation_outputs')
         .select(
-          'id, generation_id, image_url, approved, shortlisted, shortlist_rank, shortlist_note, finalist, created_at'
+          'id, generation_id, image_url, role, approved, shortlisted, shortlist_rank, shortlist_note, finalist, created_at'
         )
         .eq(
           'generation_id',
@@ -639,6 +687,7 @@ export default function Results() {
       outputId: output.id,
       generationId,
       imageUrl: output.image_url,
+      role: output.role,
       approved: Boolean(
         output.approved
       ),
@@ -722,6 +771,8 @@ export default function Results() {
         item.generation_id,
       imageUrl:
         item.image_url,
+      role:
+        item.role,
       approved:
         Boolean(item.approved),
       versionNumber:
@@ -1552,7 +1603,12 @@ export default function Results() {
                       src={
                         item.imageUrl
                       }
-                      alt={`Version ${item.versionNumber} visual ${item.visualNumber}`}
+                      alt={`Version ${
+                        item.versionNumber
+                      } · ${outputRoleLabel(
+                        item.role,
+                        item.visualNumber
+                      )}`}
                     />
 
                     <div className="resultActions">
@@ -1560,8 +1616,10 @@ export default function Results() {
                         Version{' '}
                         {item.versionNumber}
                         {' · '}
-                        Visual{' '}
-                        {item.visualNumber}
+                        {outputRoleLabel(
+                          item.role,
+                          item.visualNumber
+                        )}
                       </b>
 
                       <button
@@ -2161,15 +2219,18 @@ export default function Results() {
                       src={
                         output.image_url
                       }
-                      alt={`AI visual ${
+                      alt={outputRoleLabel(
+                        output.role,
                         index + 1
-                      }`}
+                      )}
                     />
 
                     <div className="resultActions">
                       <span>
-                        AI visual{' '}
-                        {index + 1}
+                        {outputRoleLabel(
+                          output.role,
+                          index + 1
+                        )}
                       </span>
 
                       <button
