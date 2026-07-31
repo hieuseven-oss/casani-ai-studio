@@ -234,25 +234,6 @@ export default function Results() {
       'scene' | 'lighting' | 'camera' | 'creative'
     >('scene');
 
-  type CompareItem = {
-    outputId: string;
-    generationId: string;
-    imageUrl: string;
-
-    // V12 semantic output role
-    role: string | null;
-
-    approved: boolean;
-    versionNumber: number;
-    visualNumber: number;
-  };
-
-  // Cross-version Compare
-  const [compareItems, setCompareItems] =
-    useState<CompareItem[]>([]);
-
-  const compareMode =
-    compareItems.length > 0;
 
   async function loadProjectShortlist(
     history: Generation[]
@@ -684,9 +665,14 @@ export default function Results() {
           )
       );
 
-      await loadProjectShortlist(
-        generations
+      setSelectedOutputId(
+        outputId
       );
+
+      setReferenceMode(
+        'visual'
+      );
+
     } catch (error) {
       console.error(
         error
@@ -702,67 +688,6 @@ export default function Results() {
         null
       );
     }
-  }
-
-  function toggleCompareOutput(
-    output: GenerationOutput,
-    visualNumber: number
-  ) {
-    if (!generationId) {
-      return;
-    }
-
-    const versionIndex =
-      generations.findIndex(
-        (generation) =>
-          generation.id === generationId
-      );
-
-    const item: CompareItem = {
-      outputId: output.id,
-      generationId,
-      imageUrl: output.image_url,
-      role: output.role,
-      approved: Boolean(
-        output.approved
-      ),
-      versionNumber:
-        versionIndex >= 0
-          ? versionIndex + 1
-          : 1,
-      visualNumber,
-    };
-
-    setCompareItems(
-      (current) => {
-        const exists =
-          current.some(
-            (compareItem) =>
-              compareItem.outputId ===
-              output.id
-          );
-
-        if (exists) {
-          return current.filter(
-            (compareItem) =>
-              compareItem.outputId !==
-              output.id
-          );
-        }
-
-        if (current.length >= 2) {
-          return [
-            current[1],
-            item,
-          ];
-        }
-
-        return [
-          ...current,
-          item,
-        ];
-      }
-    );
   }
 
   async function useShortlistAsReference(
@@ -795,57 +720,6 @@ export default function Results() {
           block: 'start',
         });
     }, 100);
-  }
-
-  function toggleCompareShortlistItem(
-    item: ShortlistItem
-  ) {
-    const compareItem: CompareItem = {
-      outputId: item.id,
-      generationId:
-        item.generation_id,
-      imageUrl:
-        item.image_url,
-      role:
-        item.role,
-      approved:
-        Boolean(item.approved),
-      versionNumber:
-        item.versionNumber,
-      visualNumber:
-        item.visualNumber,
-    };
-
-    setCompareItems(
-      (current) => {
-        const exists =
-          current.some(
-            (entry) =>
-              entry.outputId ===
-              item.id
-          );
-
-        if (exists) {
-          return current.filter(
-            (entry) =>
-              entry.outputId !==
-              item.id
-          );
-        }
-
-        if (current.length >= 2) {
-          return [
-            current[1],
-            compareItem,
-          ];
-        }
-
-        return [
-          ...current,
-          compareItem,
-        ];
-      }
-    );
   }
 
   async function updateShortlistRank(
@@ -1036,22 +910,6 @@ export default function Results() {
         null
       );
     }
-  }
-
-  function removeCompareItem(
-    outputId: string
-  ) {
-    setCompareItems(
-      (current) =>
-        current.filter(
-          (item) =>
-            item.outputId !== outputId
-        )
-    );
-  }
-
-  function exitCompareMode() {
-    setCompareItems([]);
   }
 
   async function downloadOutput(
@@ -1739,206 +1597,6 @@ export default function Results() {
         </section>
       )}
 
-      {compareMode && (
-        <section
-          className="panel"
-          style={{
-            marginBottom: 28,
-          }}
-        >
-          <div
-            style={{
-              display: 'flex',
-              justifyContent:
-                'space-between',
-              alignItems:
-                'center',
-              gap: 16,
-              marginBottom: 18,
-            }}
-          >
-            <div>
-              <p className="eyebrow">
-                CROSS-VERSION COMPARE
-              </p>
-
-              <h2>
-                Compare visuals
-              </h2>
-
-              <div
-                style={{
-                  opacity: 0.65,
-                  fontSize: 13,
-                }}
-              >
-                Compare up to two visuals
-                from different versions.
-              </div>
-            </div>
-
-            <button
-              type="button"
-              className="btn"
-              onClick={
-                exitCompareMode
-              }
-              disabled={busy}
-            >
-              Đóng so sánh
-            </button>
-          </div>
-
-          <div
-            style={{
-              display: 'grid',
-              gridTemplateColumns:
-                'repeat(auto-fit, minmax(280px, 1fr))',
-              gap: 18,
-            }}
-          >
-            {compareItems.map(
-              (item) => {
-                const isCurrentVersion =
-                  item.generationId ===
-                  generationId;
-
-                const liveOutput =
-                  isCurrentVersion
-                    ? outputs.find(
-                        (output) =>
-                          output.id ===
-                          item.outputId
-                      )
-                    : null;
-
-                const approved =
-                  liveOutput
-                    ? Boolean(
-                        liveOutput.approved
-                      )
-                    : item.approved;
-
-                return (
-                  <article
-                    className={`result ${
-                      approved
-                        ? 'approvedResult'
-                        : ''
-                    }`}
-                    key={
-                      item.outputId
-                    }
-                  >
-                    <img
-                      src={
-                        item.imageUrl
-                      }
-                      alt={`Version ${
-                        item.versionNumber
-                      } · ${outputRoleLabel(
-                        item.role,
-                        item.visualNumber
-                      )}`}
-                    />
-
-                    <div className="resultActions">
-                      <b>
-                        Version{' '}
-                        {item.versionNumber}
-                        {' · '}
-                        {outputRoleLabel(
-                          item.role,
-                          item.visualNumber
-                        )}
-                      </b>
-
-                      <button
-                        type="button"
-                        className={
-                          selectedOutputId ===
-                          item.outputId
-                            ? 'btn primary'
-                            : 'btn'
-                        }
-                        disabled={busy}
-                        onClick={async () => {
-                          if (
-                            item.generationId !==
-                            generationId
-                          ) {
-                            await selectVersion(
-                              item.generationId
-                            );
-                          }
-
-                          setSelectedOutputId(
-                            item.outputId
-                          );
-
-                          setReferenceMode(
-                            'visual'
-                          );
-
-                          setTimeout(() => {
-                            document
-                              .getElementById(
-                                'results-studio'
-                              )
-                              ?.scrollIntoView({
-                                behavior:
-                                  'smooth',
-                                block:
-                                  'start',
-                              });
-                          }, 100);
-                        }}
-                      >
-                        {selectedOutputId ===
-                        item.outputId
-                          ? 'Đã chọn làm mẫu'
-                          : 'Dùng làm mẫu'}
-                      </button>
-
-                      <button
-                        type="button"
-                        className="btn"
-                        disabled={busy}
-                        onClick={() =>
-                          removeCompareItem(
-                            item.outputId
-                          )
-                        }
-                      >
-                        Remove
-                      </button>
-
-                      {approved && (
-                        <span>
-                          ✓ Approved
-                        </span>
-                      )}
-                    </div>
-                  </article>
-                );
-              }
-            )}
-
-            {compareItems.length < 2 && (
-              <div
-                className="empty"
-                style={{
-                  minHeight: 240,
-                }}
-              >
-                Switch version and select
-                another visual to compare.
-              </div>
-            )}
-          </div>
-        </section>
-      )}
-
       <section
         id="results-studio"
         className="panel"
@@ -2557,12 +2215,6 @@ export default function Results() {
                   selectedOutputId ===
                   output.id;
 
-                const isCompared =
-                  compareItems.some(
-                    (item) =>
-                      item.outputId ===
-                      output.id
-                  );
 
                 return (
                   <article
@@ -2594,75 +2246,6 @@ export default function Results() {
                       <button
                         type="button"
                         className={
-                          isCompared
-                            ? 'btn primary'
-                            : 'btn'
-                        }
-                        onClick={() =>
-                          toggleCompareOutput(
-                            output,
-                            index + 1
-                          )
-                        }
-                        disabled={busy}
-                      >
-                        {isCompared
-                          ? 'Đang so sánh'
-                          : 'So sánh'}
-                      </button>
-
-                      <button
-                        type="button"
-                        className={
-                          isSelected
-                            ? 'btn primary'
-                            : 'btn'
-                        }
-                        onClick={() => {
-                          setSelectedOutputId(
-                            output.id
-                          );
-                          setReferenceMode(
-                            'visual'
-                          );
-                        }}
-                        disabled={busy}
-                      >
-                        {isSelected
-                          ? 'Đã chọn'
-                          : 'Chọn'}
-                      </button>
-
-                      <button
-                        type="button"
-                        className={
-                          isShortlisted
-                            ? 'btn primary'
-                            : 'btn'
-                        }
-                        onClick={() =>
-                          toggleShortlist(
-                            output
-                          )
-                        }
-                        disabled={
-                          Boolean(
-                            shortlistingId
-                          ) ||
-                          busy ||
-                          isApproved
-                        }
-                      >
-                        {isShortlisting
-                          ? 'Đang lưu...'
-                          : isShortlisted
-                          ? '★ Đã chọn'
-                          : '☆ Thêm vào danh sách'}
-                      </button>
-
-                      <button
-                        type="button"
-                        className={
                           isApproved
                             ? 'btn primary'
                             : 'btn'
@@ -2685,17 +2268,17 @@ export default function Results() {
                             <Loader2
                               size={16}
                             />
-                            Saving...
+                            Đang chọn...
                           </>
                         ) : isApproved ? (
                           <>
                             <Check
                               size={16}
                             />
-                            Approved
+                            Đã chọn
                           </>
                         ) : (
-                          'Duyệt'
+                          'Chọn ảnh'
                         )}
                       </button>
 

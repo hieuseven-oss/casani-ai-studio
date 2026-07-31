@@ -84,6 +84,54 @@ const COMPOSITION_PROMPTS: Record<string, string> = {
     'use a tighter premium editorial composition emphasizing product detail, materials and craftsmanship',
 };
 
+const PRODUCT_HERO_QUALITY = `
+CASANI PRODUCT HERO QUALITY — HIGHEST VISUAL PRIORITY
+
+The supplied lighting fixture is the commercial product being advertised.
+The interior exists to present the product, not compete with it.
+
+PRODUCT VISUAL PRIORITY:
+- the lighting fixture must be the clearest and most visually important object in the photograph
+- preserve the exact manufactured product identity from the product reference
+- render product geometry, silhouette, proportions and construction with high fidelity
+- preserve individual crystal, glass, leaf, petal or decorative components
+- preserve suspension cables, rods, canopy, frame, metal connections and mounting structure
+- product edges and component boundaries must remain clean and clearly readable
+- maintain fine local detail and natural micro-contrast on the fixture
+- show convincing crystal/glass transparency, refraction, reflections and material depth
+- metallic parts must retain believable finish, texture and construction detail
+
+PRODUCT FOCUS:
+- focus must prioritize the lighting fixture
+- the complete fixture should read clearly at normal viewing size
+- avoid soft, smeared, hazy or low-detail rendering on the product
+- do not let architectural surfaces appear substantially sharper or more detailed than the hero fixture
+- maintain photographic depth naturally, but keep the fixture inside the primary zone of sharp focus
+
+HIGHLIGHT CONTROL — CRITICAL:
+- luminous bulbs and internal light sources may glow naturally
+- preserve visible structure and material detail around illuminated areas
+- crystal and glass must not merge into one featureless bright mass
+- avoid excessive bloom, haze, clipping or overexposure on the fixture
+- retain separation between adjacent crystals and decorative elements
+- preserve highlight texture instead of producing flat white regions
+
+VISUAL HIERARCHY:
+1. lighting fixture identity and fidelity
+2. lighting fixture detail, material and craftsmanship
+3. premium photographic lighting
+4. supporting interior realism
+
+The interior must remain photorealistic, premium and architecturally convincing,
+but it is supporting context.
+
+Do not increase background texture, contrast or visual complexity in a way that competes with the product.
+Use composition, exposure and lighting to guide attention naturally toward the fixture.
+
+This is a luxury LIGHTING PRODUCT advertisement inside a premium interior,
+not an interior-design advertisement that happens to contain a chandelier.
+`;
+
 const MATERIAL_PROMPTS: Record<string, string> = {
   Auto:
     'select premium interior materials naturally appropriate for the selected architecture',
@@ -459,6 +507,8 @@ Avoid unnecessary redesign.
 `;
 
   return `
+${PRODUCT_HERO_QUALITY}
+
 Create a premium photorealistic architectural lighting advertising photograph.
 
 ${visualReferenceRules}

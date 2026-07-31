@@ -22,6 +22,13 @@ import {
   creativePresets,
 } from '../lib/creativePresets';
 
+import {
+  DEFAULT_IMAGE_QUALITY,
+  IMAGE_QUALITY_OPTIONS,
+  imageQualityLabel,
+  type ImageQuality,
+} from '../lib/imageQuality';
+
 const spaces = [
   'Kitchen',
   'Dining Room',
@@ -85,6 +92,73 @@ const materialOptions = [
   'Dark Luxury',
 ];
 
+const optionLabels: Record<string, string> = {
+  // Space
+  'Kitchen': 'Bếp',
+  'Dining Room': 'Phòng ăn',
+  'Living Room': 'Phòng khách',
+  'Bedroom': 'Phòng ngủ',
+  'Hotel': 'Khách sạn',
+  'Villa': 'Biệt thự',
+
+  // Style
+  'Modern': 'Hiện đại',
+  'Luxury': 'Sang trọng',
+  'Minimal': 'Tối giản',
+  'Contemporary': 'Đương đại',
+  'Classic': 'Cổ điển',
+
+  // Mood
+  'Warm': 'Ấm áp',
+  'Elegant': 'Thanh lịch',
+  'Dramatic': 'Ấn tượng',
+  'Natural': 'Tự nhiên',
+  'Premium': 'Cao cấp',
+
+  // Camera
+  'Hero': 'Chủ đạo',
+  'Wide Interior': 'Toàn cảnh',
+  'Eye Level': 'Tầm mắt',
+  'Low Angle': 'Góc thấp',
+  'Architectural': 'Kiến trúc',
+
+  // Lighting
+  'Warm Ambient': 'Ánh sáng ấm',
+  'Natural Daylight': 'Ánh sáng tự nhiên',
+  'Golden Hour': 'Giờ vàng',
+  'Soft Editorial': 'Ánh sáng dịu',
+
+  // Composition
+  'Product Hero': 'Tập trung sản phẩm',
+  'Balanced Interior': 'Cân bằng không gian',
+  'Wide Architecture': 'Toàn cảnh kiến trúc',
+  'Close Editorial': 'Cận cảnh',
+
+  // Materials
+  'Auto': 'Tự động',
+  'Stone & Wood': 'Đá & gỗ',
+  'Marble & Brass': 'Đá marble & đồng',
+  'Warm Minimal': 'Tối giản ấm',
+  'Dark Luxury': 'Sang trọng tối',
+};
+
+function optionLabel(value: string) {
+  return optionLabels[value] ?? value;
+}
+
+const presetLabels: Record<string, string> = {
+  'Luxury Villa': 'Biệt thự sang trọng',
+  'Double-height Living': 'Phòng khách thông tầng',
+  'Modern Mansion': 'Dinh thự hiện đại',
+  'Luxury Dining': 'Phòng ăn sang trọng',
+  'Hotel Lobby': 'Sảnh khách sạn',
+  'Neo Classic': 'Tân cổ điển',
+};
+
+function presetLabel(value: string) {
+  return presetLabels[value] ?? value;
+}
+
 export default function Create() {
   const nav = useNavigate();
 
@@ -129,6 +203,11 @@ export default function Create() {
 
   const [customDirection, setCustomDirection] =
     useState('');
+
+  const [imageQuality, setImageQuality] =
+    useState<ImageQuality>(
+      DEFAULT_IMAGE_QUALITY
+    );
 
   const [loading, setLoading] =
     useState(false);
@@ -242,6 +321,8 @@ export default function Create() {
         mood,
         ratio,
 
+        imageQuality,
+
         preset:
           presetPrompt || undefined,
 
@@ -296,25 +377,24 @@ export default function Create() {
     <>
       <header className="pageTitle">
         <p className="eyebrow">
-          NEW CAMPAIGN
+          TẠO HÌNH MỚI
         </p>
 
         <h1>
-          Create a new visual
+          Tạo hình ảnh sản phẩm
         </h1>
 
         <p>
-          Start with the real product
-          image. Casani AI Studio builds
-          the surrounding advertising
-          scene.
+          Bắt đầu từ ảnh sản phẩm thực tế.
+          Casani AI Studio sẽ xây dựng
+          không gian hình ảnh xung quanh sản phẩm.
         </p>
       </header>
 
       <div className="createLayout">
         <section className="panel">
           <h2>
-            1. Product
+            1. Sản phẩm
           </h2>
 
           <label
@@ -342,12 +422,12 @@ export default function Create() {
                 <Upload size={30} />
 
                 <b>
-                  Drop product photo here
+                  Thả ảnh sản phẩm vào đây
                 </b>
 
                 <span>
-                  JPG, PNG or WEBP · phone
-                  photo is fine
+                  JPG, PNG hoặc WEBP · ảnh chụp
+                  bằng điện thoại đều được
                 </span>
               </>
             )}
@@ -370,7 +450,7 @@ export default function Create() {
             </label>
 
             <label>
-              Product name
+              Tên sản phẩm
 
               <input
                 value={name}
@@ -388,11 +468,11 @@ export default function Create() {
 
         <aside className="config panel">
           <h2>
-            2. Creative direction
+            2. Định hướng sáng tạo
           </h2>
 
           <Pick
-            title="Space"
+            title="Không gian"
             items={spaces}
             value={space}
             set={setSpace}
@@ -400,7 +480,7 @@ export default function Create() {
           />
 
           <Pick
-            title="Style"
+            title="Phong cách"
             items={styles}
             value={style}
             set={setStyle}
@@ -408,7 +488,7 @@ export default function Create() {
           />
 
           <Pick
-            title="Mood"
+            title="Cảm xúc"
             items={moods}
             value={mood}
             set={setMood}
@@ -416,7 +496,7 @@ export default function Create() {
           />
 
           <Pick
-            title="Format"
+            title="Tỷ lệ ảnh"
             items={ratios}
             value={ratio}
             set={setRatio}
@@ -440,7 +520,7 @@ export default function Create() {
           />
 
           <Pick
-            title="Composition"
+            title="Bố cục"
             items={compositionOptions}
             value={composition}
             set={setComposition}
@@ -448,7 +528,7 @@ export default function Create() {
           />
 
           <Pick
-            title="Materials"
+            title="Vật liệu"
             items={materialOptions}
             value={materials}
             set={setMaterials}
@@ -456,7 +536,7 @@ export default function Create() {
           />
 
           <div className="pick">
-            <b>Creative preset</b>
+            <b>Phương án gợi ý</b>
 
             <div className="chips">
               {creativePresets.map((preset) => (
@@ -476,76 +556,129 @@ export default function Create() {
                     setPresetPrompt(preset.prompt);
                   }}
                 >
-                  {preset.name}
+                  {presetLabel(preset.name)}
                 </button>
               ))}
             </div>
           </div>
 
-          <div className="pick">
-            <b>Yêu cầu sáng tạo</b>
+        </aside>
 
-            <textarea
-              value={customDirection}
-              onChange={(event) =>
-                setCustomDirection(
-                  event.target.value
-                )
-              }
-              disabled={loading}
-              rows={5}
-              placeholder="Example: Double-height luxury living room, floor-to-ceiling windows, natural stone walls, warm sunset light. Keep the chandelier as the main visual focus."
-              style={{
-                width: '100%',
-                resize: 'vertical',
-                marginTop: 8,
-                padding: 12,
-                borderRadius: 10,
-                border:
-                  '1px solid var(--line, #d8d0c5)',
-                background: 'transparent',
-                font: 'inherit',
-                lineHeight: 1.5,
-                boxSizing: 'border-box',
-              }}
-            />
+        <section className="panel createBrief">
+          <div className="createBriefHead">
+            <div>
+              <span className="createStepEyebrow">
+                3. YÊU CẦU SÁNG TẠO
+              </span>
 
-            <small
-              style={{
-                display: 'block',
-                marginTop: 6,
-              }}
-            >
-              Optional — describe architecture,
-              materials, lighting or composition.
-            </small>
+              <h2>
+                Hoàn thiện yêu cầu
+              </h2>
+            </div>
+
+            <p>
+              Bổ sung yêu cầu riêng nếu cần,
+              sau đó bắt đầu tạo bộ hình.
+            </p>
           </div>
 
-          <button
-            className="btn primary wide"
-            onClick={generate}
-            disabled={loading}
-          >
-            {loading ? (
-              <>
-                <ImageIcon size={18} />
-                {statusText ||
-                  'Đang tạo...'}
-              </>
-            ) : (
-              <>
-                <Sparkles size={18} />
-                Generate 4 visuals
-              </>
-            )}
-          </button>
+          <div className="createBriefGrid">
+            <div className="createDirection">
+              <label>
+                Yêu cầu sáng tạo
 
-          <small>
-            Product, project, generation
-            and AI outputs are stored
-            directly in Supabase.
-          </small>
-        </aside>
+                <textarea
+                  value={customDirection}
+                  onChange={(event) =>
+                    setCustomDirection(
+                      event.target.value
+                    )
+                  }
+                  disabled={loading}
+                  rows={3}
+                  placeholder="Ví dụ: Phòng khách thông tầng sang trọng, cửa kính lớn, đá tự nhiên, ánh sáng hoàng hôn ấm. Giữ đèn là điểm nhấn chính."
+                />
+              </label>
+
+              <small>
+                Không bắt buộc — bổ sung kiến trúc,
+                vật liệu, ánh sáng hoặc bố cục.
+              </small>
+            </div>
+
+            <div className="createGenerate">
+              <div className="createGenerateSummary">
+                <b>Tóm tắt lựa chọn</b>
+
+                <span>
+                  {optionLabel(space)} · {optionLabel(style)} ·{' '}
+                  {optionLabel(mood)} · {ratio}
+                </span>
+              </div>
+
+              <div className="imageQualityPicker">
+                <span className="imageQualityTitle">
+                  Chất lượng ảnh
+                </span>
+
+                <div className="imageQualityOptions">
+                  {IMAGE_QUALITY_OPTIONS.map(
+                    (option) => (
+                      <button
+                        key={option.value}
+                        type="button"
+                        disabled={loading}
+                        className={
+                          imageQuality === option.value
+                            ? 'selected'
+                            : ''
+                        }
+                        onClick={() =>
+                          setImageQuality(
+                            option.value
+                          )
+                        }
+                      >
+                        <b>{option.label}</b>
+                        <span>
+                          {option.description}
+                        </span>
+                      </button>
+                    )
+                  )}
+                </div>
+
+                <small className="imageQualityHint">
+                  Đang chọn: {imageQualityLabel(imageQuality)}
+                </small>
+              </div>
+
+              <button
+                className="btn primary wide"
+                onClick={generate}
+                disabled={loading}
+              >
+                {loading ? (
+                  <>
+                    <ImageIcon size={18} />
+                    {statusText ||
+                      'Đang tạo...'}
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={18} />
+                    Tạo 4 phương án
+                  </>
+                )}
+              </button>
+
+              <small>
+                Sản phẩm, dự án và hình ảnh AI
+                được lưu trực tiếp vào hệ thống.
+              </small>
+            </div>
+          </div>
+        </section>
       </div>
     </>
   );
@@ -584,7 +717,7 @@ function Pick({
               type="button"
               disabled={disabled}
             >
-              {item}
+              {optionLabel(item)}
             </button>
           )
         )}

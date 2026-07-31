@@ -13,6 +13,12 @@ import {
   updateProjectStatus,
 } from './projectService';
 
+import {
+  DEFAULT_IMAGE_QUALITY,
+  getImageDimensions,
+  type ImageQuality,
+} from './imageQuality';
+
 export const DEFAULT_IMAGE_MODEL =
   'black-forest-labs/FLUX.2-pro';
 
@@ -38,6 +44,7 @@ export type GenerateVisualInput = {
   style?: string | null;
   mood?: string | null;
   ratio?: string | null;
+  imageQuality?: ImageQuality;
 
   preset?: string | null;
   camera?: string | null;
@@ -90,6 +97,16 @@ export async function generateVisualVersion(
   input: GenerateVisualInput
 ): Promise<GeneratedVersion> {
   let generationId: string | null = null;
+
+  const imageQuality =
+    input.imageQuality ??
+    DEFAULT_IMAGE_QUALITY;
+
+  const imageDimensions =
+    getImageDimensions(
+      imageQuality,
+      input.ratio
+    );
 
   try {
     // Project lifecycle: generation has started.
@@ -208,6 +225,15 @@ export async function generateVisualVersion(
 
           ratio:
             input.ratio,
+
+          image_quality:
+            imageQuality,
+
+          target_width:
+            imageDimensions.width,
+
+          target_height:
+            imageDimensions.height,
 
           preset:
             input.preset,

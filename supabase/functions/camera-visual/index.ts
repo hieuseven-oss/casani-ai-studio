@@ -3,6 +3,72 @@ import { createClient } from 'npm:@supabase/supabase-js@2';
 
 const AI_BUCKET = 'ai-outputs';
 
+const MIN_OUTPUT_DIMENSION = 256;
+const MAX_OUTPUT_DIMENSION = 2048;
+const DIMENSION_STEP = 16;
+const MAX_OUTPUT_PIXELS = 4_194_304;
+
+function clampDimensions(
+  width: number,
+  height: number
+) {
+  if (
+    !Number.isFinite(width) ||
+    !Number.isFinite(height) ||
+    width <= 0 ||
+    height <= 0
+  ) {
+    return {
+      width: 1024,
+      height: 1024,
+    };
+  }
+
+  const pixels =
+    width * height;
+
+  const scale =
+    Math.min(
+      1,
+      MAX_OUTPUT_DIMENSION / width,
+      MAX_OUTPUT_DIMENSION / height,
+      Math.sqrt(
+        MAX_OUTPUT_PIXELS / pixels
+      )
+    );
+
+  const scaledWidth =
+    width * scale;
+
+  const scaledHeight =
+    height * scale;
+
+  const snap = (
+    value: number
+  ) => {
+    const snapped =
+      Math.round(
+        value / DIMENSION_STEP
+      ) * DIMENSION_STEP;
+
+    return Math.min(
+      MAX_OUTPUT_DIMENSION,
+      Math.max(
+        MIN_OUTPUT_DIMENSION,
+        snapped
+      )
+    );
+  };
+
+  return {
+    width:
+      snap(scaledWidth),
+
+    height:
+      snap(scaledHeight),
+  };
+}
+
 function extensionFromContentType(contentType: string) {
   if (contentType.includes('png')) return 'png';
   if (contentType.includes('webp')) return 'webp';
@@ -233,6 +299,36 @@ serve(async (req) => {
       );
     }
 
+    const requestedDimensions =
+      clampDimensions(
+        Number(
+          body.target_width || 1024
+        ),
+        Number(
+          body.target_height || 1024
+        )
+      );
+
+    console.log(
+      'Camera image quality request:',
+      {
+        image_quality:
+          body.image_quality || 'legacy',
+
+        target_width:
+          body.target_width,
+
+        target_height:
+          body.target_height,
+
+        provider_width:
+          requestedDimensions.width,
+
+        provider_height:
+          requestedDimensions.height,
+      }
+    );
+
     const cameraSet =
       body.camera_set === true;
 
@@ -331,8 +427,11 @@ serve(async (req) => {
 
               prompt,
 
-              width: 1024,
-              height: 1024,
+              width:
+                requestedDimensions.width,
+
+              height:
+                requestedDimensions.height,
 
               n: 1,
 

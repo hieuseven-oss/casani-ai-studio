@@ -388,3 +388,376 @@
     width:100%;
   }
 }
+
+
+/* =========================================================
+   V15C.5 Create Workspace Polish
+   ========================================================= */
+
+.createLayout{
+  grid-template-columns:
+    minmax(360px,.82fr)
+    minmax(560px,1.18fr);
+  gap:18px;
+}
+
+.createLayout > .panel{
+  min-width:0;
+}
+
+.createLayout > .panel > h2{
+  margin-top:0;
+  margin-bottom:18px;
+}
+
+.createLayout .drop{
+  height:310px;
+}
+
+.createLayout .two{
+  margin-top:14px;
+}
+
+.createLayout .config{
+  position:static;
+}
+
+.createLayout .config .pick{
+  margin:0 0 16px;
+}
+
+.createLayout .config .chips{
+  gap:6px;
+  margin-top:7px;
+}
+
+.createLayout .config .chips button{
+  padding:7px 10px;
+  font-size:11px;
+}
+
+.createBrief{
+  grid-column:1 / -1;
+}
+
+.createBriefHead{
+  display:flex;
+  justify-content:space-between;
+  align-items:flex-start;
+  gap:28px;
+  padding-bottom:16px;
+  border-bottom:1px solid #ebe6de;
+}
+
+.createBriefHead h2{
+  margin:4px 0 0;
+}
+
+.createBriefHead p{
+  margin:0;
+  max-width:420px;
+  color:#817a72;
+  font-size:13px;
+  line-height:1.5;
+}
+
+.createStepEyebrow{
+  color:#9a7649;
+  font-size:10px;
+  font-weight:700;
+  letter-spacing:.18em;
+}
+
+.createBriefGrid{
+  display:grid;
+  grid-template-columns:minmax(0,1.45fr) minmax(280px,.55fr);
+  gap:22px;
+  align-items:stretch;
+  margin-top:18px;
+}
+
+.createDirection textarea{
+  width:100%;
+  min-height:96px;
+  resize:vertical;
+  margin-top:2px;
+  line-height:1.5;
+}
+
+.createDirection small,
+.createGenerate small{
+  display:block;
+  margin-top:7px;
+  color:#8a847c;
+  font-size:11px;
+  line-height:1.45;
+}
+
+.createGenerate{
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  padding:16px;
+  border:1px solid #e2ddd5;
+  border-radius:11px;
+  background:#faf8f4;
+}
+
+.createGenerateSummary{
+  margin-bottom:13px;
+}
+
+.createGenerateSummary b,
+.createGenerateSummary span{
+  display:block;
+}
+
+.createGenerateSummary b{
+  font-size:13px;
+}
+
+.createGenerateSummary span{
+  margin-top:4px;
+  color:#817a72;
+  font-size:11px;
+}
+
+@media(max-width:1150px){
+  .createLayout{
+    grid-template-columns:1fr;
+  }
+
+  .createBrief{
+    grid-column:auto;
+  }
+
+  .createLayout .drop{
+    height:340px;
+  }
+}
+
+@media(max-width:700px){
+  .createBriefHead{
+    display:grid;
+    gap:8px;
+  }
+
+  .createBriefGrid{
+    grid-template-columns:1fr;
+  }
+
+  .createLayout .drop{
+    height:300px;
+  }
+}
+
+
+/* =========================================================
+   V15D.2 Create Workspace — balanced production layout
+   ========================================================= */
+
+/*
+ * Desktop:
+ * Product | Creative Direction
+ *   1fr   |       1fr
+ *
+ * Keep generation workflow untouched.
+ */
+
+.createLayout{
+  grid-template-columns:
+    minmax(0,1fr)
+    minmax(0,1fr);
+  gap:18px;
+  align-items:stretch;
+}
+
+/* Make the two main cards visually balanced. */
+.createLayout > .panel:not(.createBrief){
+  height:100%;
+}
+
+/* Product card */
+.createLayout > section.panel:not(.createBrief){
+  display:flex;
+  flex-direction:column;
+}
+
+.createLayout > section.panel:not(.createBrief) .drop{
+  flex:1;
+  min-height:330px;
+  height:auto;
+}
+
+/* Creative Direction card */
+.createLayout .config{
+  display:flex;
+  flex-direction:column;
+  position:static;
+}
+
+.createLayout .config .pick{
+  margin:0 0 13px;
+}
+
+.createLayout .config .chips{
+  gap:6px;
+  margin-top:6px;
+}
+
+.createLayout .config .chips button{
+  padding:6px 10px;
+  font-size:11px;
+}
+
+/* Bottom workflow */
+.createBrief{
+  grid-column:1 / -1;
+}
+
+.createBriefHead{
+  padding-bottom:12px;
+}
+
+.createBriefGrid{
+  grid-template-columns:
+    minmax(0,1.5fr)
+    minmax(300px,.5fr);
+  gap:18px;
+}
+
+.createDirection{
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+}
+
+.createDirection textarea{
+  min-height:105px;
+}
+
+/* Generate block stays compact instead of stretching vertically. */
+.createGenerate{
+  min-height:150px;
+  justify-content:center;
+}
+
+/* Large desktop: use the available canvas rather than leaving
+   excessive empty space on the right. */
+@media(min-width:1400px){
+  .createLayout{
+    grid-template-columns:
+      minmax(0,1fr)
+      minmax(0,1fr);
+  }
+
+  .createLayout > section.panel:not(.createBrief) .drop{
+    min-height:350px;
+  }
+}
+
+/* Tablet */
+@media(max-width:1150px){
+  .createLayout{
+    grid-template-columns:1fr;
+  }
+
+  .createLayout > .panel:not(.createBrief){
+    height:auto;
+  }
+
+  .createBrief{
+    grid-column:auto;
+  }
+
+  .createBriefGrid{
+    grid-template-columns:1fr;
+  }
+
+  .createLayout > section.panel:not(.createBrief) .drop{
+    height:340px;
+    min-height:340px;
+    flex:none;
+  }
+}
+
+/* Mobile */
+@media(max-width:700px){
+  .createLayout > section.panel:not(.createBrief) .drop{
+    height:300px;
+    min-height:300px;
+  }
+
+  .createGenerate{
+    min-height:0;
+  }
+}
+
+
+/* =========================================================
+   V15E Image Quality Selector
+   ========================================================= */
+
+.imageQualityPicker{
+  margin-bottom:14px;
+}
+
+.imageQualityTitle{
+  display:block;
+  margin-bottom:7px;
+  font-size:11px;
+  font-weight:700;
+  color:#6f685f;
+}
+
+.imageQualityOptions{
+  display:grid;
+  grid-template-columns:repeat(3,minmax(0,1fr));
+  gap:7px;
+}
+
+.imageQualityOptions button{
+  min-width:0;
+  padding:9px 7px;
+  border:1px solid #ddd4c8;
+  border-radius:9px;
+  background:#fff;
+  color:#6f685f;
+  text-align:center;
+}
+
+.imageQualityOptions button b,
+.imageQualityOptions button span{
+  display:block;
+}
+
+.imageQualityOptions button b{
+  font-size:11px;
+}
+
+.imageQualityOptions button span{
+  margin-top:3px;
+  font-size:9px;
+  color:#91887e;
+}
+
+.imageQualityOptions button.selected{
+  background:#1b1916;
+  border-color:#1b1916;
+  color:#fff;
+}
+
+.imageQualityOptions button.selected span{
+  color:#c9c1b7;
+}
+
+.imageQualityHint{
+  margin-top:6px!important;
+  font-size:10px!important;
+}
+
+@media(max-width:560px){
+  .imageQualityOptions{
+    grid-template-columns:1fr;
+  }
+}
