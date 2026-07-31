@@ -87,46 +87,55 @@ const COMPOSITION_PROMPTS: Record<string, string> = {
 const PRODUCT_HERO_QUALITY = `
 CASANI PRODUCT HERO QUALITY — HIGHEST VISUAL PRIORITY
 
-The supplied lighting fixture is the commercial product being advertised.
+The supplied lighting fixture is the commercial HERO PRODUCT.
 The interior exists to present the product, not compete with it.
 
-PRODUCT VISUAL PRIORITY:
-- the lighting fixture must be the clearest and most visually important object in the photograph
-- preserve the exact manufactured product identity from the product reference
-- render product geometry, silhouette, proportions and construction with high fidelity
-- preserve individual crystal, glass, leaf, petal or decorative components
-- preserve suspension cables, rods, canopy, frame, metal connections and mounting structure
-- product edges and component boundaries must remain clean and clearly readable
-- maintain fine local detail and natural micro-contrast on the fixture
-- show convincing crystal/glass transparency, refraction, reflections and material depth
-- metallic parts must retain believable finish, texture and construction detail
+PRODUCT IDENTITY LOCK:
+- preserve the exact manufactured lighting fixture from the supplied product reference
+- preserve its silhouette, proportions, construction, mounting system and component arrangement
+- preserve canopy, suspension system, frame, metal connections, crystals, glass and decorative elements
+- preserve true product color, finish and material identity
+- never redesign, simplify, embellish, replace or invent product details
 
-PRODUCT FOCUS:
-- focus must prioritize the lighting fixture
-- the complete fixture should read clearly at normal viewing size
-- avoid soft, smeared, hazy or low-detail rendering on the product
-- do not let architectural surfaces appear substantially sharper or more detailed than the hero fixture
-- maintain photographic depth naturally, but keep the fixture inside the primary zone of sharp focus
+OPTICAL PRODUCT FOCUS — CRITICAL:
+- treat the lighting fixture as the primary autofocus subject of a real professional camera
+- place the principal plane of optical focus on the lighting fixture
+- the fixture should appear naturally clearer than the supporting interior
+- achieve product prominence primarily through photographic focus hierarchy, composition, exposure and lighting
+- preserve the original softness and smooth material transitions of crystal and glass
+- improve product clarity only moderately and naturally
+- reveal only detail that belongs to the reference product
+- do not create harder edges, stronger facets or more geometric definition than the reference
+- do not exaggerate corners, outlines, crystal cuts or micro-texture
+- do not aggressively sharpen or increase micro-contrast
 
-HIGHLIGHT CONTROL — CRITICAL:
-- luminous bulbs and internal light sources may glow naturally
-- preserve visible structure and material detail around illuminated areas
-- crystal and glass must not merge into one featureless bright mass
-- avoid excessive bloom, haze, clipping or overexposure on the fixture
-- retain separation between adjacent crystals and decorative elements
-- preserve highlight texture instead of producing flat white regions
+SUPPORTING INTERIOR:
+- keep the interior photorealistic, premium and architecturally convincing
+- preserve enough architectural clarity to understand the complete scene
+- allow the interior to recede slightly in visual prominence
+- use gentle natural depth-of-field and focus falloff away from the fixture
+- background softness must remain subtle and photographic
+- do not strongly blur the room
+- do not destroy furniture, material or architectural information
+- do not make background surfaces visually sharper or more dominant than the fixture
+
+HIGHLIGHT CONTROL:
+- preserve natural sparkle, transparency, reflections and warm luminous character
+- keep bright transitions soft and photographic
+- avoid excessive bloom, haze and featureless white clipping
+- preserve visible product structure without forcing every crystal edge to become sharp
+- maintain smooth transitions between illuminated and transparent areas
 
 VISUAL HIERARCHY:
-1. lighting fixture identity and fidelity
-2. lighting fixture detail, material and craftsmanship
-3. premium photographic lighting
+1. exact lighting product identity
+2. natural optical focus on the lighting fixture
+3. premium photographic lighting and product presentation
 4. supporting interior realism
 
-The interior must remain photorealistic, premium and architecturally convincing,
-but it is supporting context.
-
-Do not increase background texture, contrast or visual complexity in a way that competes with the product.
-Use composition, exposure and lighting to guide attention naturally toward the fixture.
+The result should behave like a premium product photograph taken by a professional photographer:
+the camera is focused on the lighting fixture,
+the fixture is naturally clear and visually dominant,
+and the surrounding interior falls back gently without looking artificially blurred.
 
 This is a luxury LIGHTING PRODUCT advertisement inside a premium interior,
 not an interior-design advertisement that happens to contain a chandelier.
