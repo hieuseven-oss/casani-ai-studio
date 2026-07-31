@@ -9,6 +9,7 @@ import Create from './pages/Create';
 import Results from './pages/Results';
 import Products from './pages/Products';
 import Projects from './pages/Projects';
+import ProductionLibrary from './pages/ProductionLibrary';
 import SettingsPage from './pages/Settings';
 
 export default function App() {
@@ -29,6 +30,7 @@ export default function App() {
                 <Route path="/results/:id" element={<Results />} />
                 <Route path="/products" element={<Products />} />
                 <Route path="/projects" element={<Projects />} />
+                <Route path="/production" element={<ProductionLibrary />} />
                 <Route path="/settings" element={<SettingsPage />} />
               </Routes>
             </Layout>
