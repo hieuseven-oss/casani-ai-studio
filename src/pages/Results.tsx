@@ -83,6 +83,32 @@ type ShortlistItem = GenerationOutput & {
   visualNumber: number;
 };
 
+const CAMERA_SET_ROLES = [
+  'left_three_quarter',
+  'right_three_quarter',
+  'hero_close',
+] as const;
+
+function isCameraSetOutput(
+  output: GenerationOutput
+) {
+  return CAMERA_SET_ROLES.includes(
+    output.role as typeof CAMERA_SET_ROLES[number]
+  );
+}
+
+function isCompleteCameraSet(
+  outputs: GenerationOutput[]
+) {
+  return CAMERA_SET_ROLES.every(
+    (role) =>
+      outputs.some(
+        (output) =>
+          output.role === role
+      )
+  );
+}
+
 function outputRoleLabel(
   role: string | null,
   fallbackIndex?: number
@@ -1355,6 +1381,46 @@ export default function Results() {
         output.id === selectedOutputId
     ) || null;
 
+  const currentVersionIndex =
+    generations.findIndex(
+      (generation) =>
+        generation.id === generationId
+    );
+
+  const currentVersionNumber =
+    currentVersionIndex >= 0
+      ? currentVersionIndex + 1
+      : null;
+
+  const cameraSetOutputs =
+    outputs.filter(
+      isCameraSetOutput
+    );
+
+  // V12.5C
+  // Camera Set must always follow the production order:
+  // 3/4 left -> 3/4 right -> hero close.
+  // Do not depend on database row order.
+  const orderedOutputs =
+    cameraSetOutputs.length > 0
+      ? [
+          ...CAMERA_SET_ROLES.flatMap(
+            (role) =>
+              outputs.filter(
+                (output) =>
+                  output.role === role
+              )
+          ),
+          ...outputs.filter(
+            (output) =>
+              !isCameraSetOutput(output)
+          ),
+        ]
+      : outputs;
+
+  const hasCompleteCameraSet =
+    isCompleteCameraSet(outputs);
+
   return (
     <>
       <header className="sectionHead topmini">
@@ -2149,6 +2215,77 @@ export default function Results() {
           Đang tải phiên bản...
         </div>
       ) : (
+        <>
+        {cameraSetOutputs.length > 0 && (
+          <section
+            className={`cameraSetPanel ${
+              hasCompleteCameraSet
+                ? 'complete'
+                : ''
+            }`}
+          >
+            <div className="cameraSetHeading">
+              <div>
+                <span className="cameraSetEyebrow">
+                  CAMERA SET
+                </span>
+
+                <h2>
+                  {currentVersionNumber
+                    ? `Version ${currentVersionNumber}`
+                    : 'Bộ góc máy'}
+                </h2>
+
+                <p>
+                  {hasCompleteCameraSet
+                    ? '3 ảnh · Cùng một không gian · Bộ góc máy hoàn chỉnh'
+                    : `${cameraSetOutputs.length}/3 ảnh · Đang hoàn thiện bộ góc máy`}
+                </p>
+              </div>
+
+              <span
+                className={`cameraSetStatus ${
+                  hasCompleteCameraSet
+                    ? 'ready'
+                    : ''
+                }`}
+              >
+                {hasCompleteCameraSet
+                  ? 'Hoàn chỉnh'
+                  : `${cameraSetOutputs.length}/3`}
+              </span>
+            </div>
+
+            <div className="cameraSetRoles">
+              {CAMERA_SET_ROLES.map(
+                (role) => {
+                  const available =
+                    cameraSetOutputs.some(
+                      (output) =>
+                        output.role === role
+                    );
+
+                  return (
+                    <span
+                      key={role}
+                      className={
+                        available
+                          ? 'available'
+                          : ''
+                      }
+                    >
+                      {available
+                        ? '✓ '
+                        : '○ '}
+                      {outputRoleLabel(role)}
+                    </span>
+                  );
+                }
+              )}
+            </div>
+          </section>
+        )}
+
         <div className="resultGrid">
           {productDisplayUrl && (
             <article className="result">
@@ -2167,8 +2304,8 @@ export default function Results() {
             </article>
           )}
 
-          {outputs.length > 0 ? (
-            outputs.map(
+          {orderedOutputs.length > 0 ? (
+            orderedOutputs.map(
               (
                 output,
                 index
@@ -2395,6 +2532,7 @@ export default function Results() {
             </div>
           )}
         </div>
+        </>
       )}
     </>
   );

@@ -100,3 +100,93 @@
     grid-template-columns:1fr;
   }
 }
+
+/* =========================================================
+   V12.5 Camera Set Production Panel
+   ========================================================= */
+
+.cameraSetPanel{
+  margin:0 0 18px;
+  padding:20px 22px;
+  background:#fff;
+  border:1px solid #e2ddd5;
+  border-radius:13px;
+}
+
+.cameraSetPanel.complete{
+  border-color:#cbb48f;
+}
+
+.cameraSetHeading{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap:20px;
+}
+
+.cameraSetHeading h2{
+  margin:4px 0 5px;
+  font-family:'Playfair Display';
+  font-size:25px;
+}
+
+.cameraSetHeading p{
+  margin:0;
+  color:#7b756d;
+  font-size:13px;
+}
+
+.cameraSetEyebrow{
+  font-size:10px;
+  font-weight:700;
+  letter-spacing:.18em;
+  color:#9a7649;
+}
+
+.cameraSetStatus{
+  flex:none;
+  padding:7px 10px;
+  border-radius:999px;
+  background:#f3f0eb;
+  color:#716b63;
+  font-size:11px;
+  font-weight:700;
+}
+
+.cameraSetStatus.ready{
+  background:#f1ebe1;
+  color:#7b5b32;
+}
+
+.cameraSetRoles{
+  display:flex;
+  flex-wrap:wrap;
+  gap:9px;
+  margin-top:16px;
+}
+
+.cameraSetRoles span{
+  padding:8px 11px;
+  border:1px solid #ded8cf;
+  border-radius:999px;
+  background:#faf8f4;
+  color:#918a81;
+  font-size:12px;
+  font-weight:600;
+}
+
+.cameraSetRoles span.available{
+  background:#f5efe5;
+  border-color:#d6c19e;
+  color:#765a34;
+}
+
+@media(max-width:560px){
+  .cameraSetHeading{
+    display:grid;
+  }
+
+  .cameraSetStatus{
+    width:max-content;
+  }
+}
