@@ -214,108 +214,180 @@
    ========================================================= */
 
 .productionSetCard{
+  display:flex;
+  flex-direction:column;
+  min-width:0;
   background:#fff;
   border:1px solid #e2ddd5;
   border-radius:14px;
   overflow:hidden;
+  box-shadow:0 4px 14px rgba(35,29,22,.045);
+  transition:
+    transform .18s ease,
+    box-shadow .18s ease,
+    border-color .18s ease;
+}
+
+.productionSetCard:hover{
+  transform:translateY(-2px);
+  border-color:#d4c9bb;
+  box-shadow:0 12px 28px rgba(35,29,22,.09);
 }
 
 .productionSetPreview{
   display:grid;
-  grid-template-columns:repeat(3,1fr);
+  grid-template-columns:repeat(4,minmax(0,1fr));
   gap:1px;
+  min-height:0;
   background:#e5dfd6;
+}
+
+.productionSetPreview.assets-1{
+  grid-template-columns:1fr;
+}
+
+.productionSetPreview.assets-2{
+  grid-template-columns:repeat(2,minmax(0,1fr));
+}
+
+.productionSetPreview.assets-3{
+  grid-template-columns:repeat(3,minmax(0,1fr));
 }
 
 .productionAssetPreview{
   margin:0;
   position:relative;
+  min-width:0;
   background:#f6f3ee;
   overflow:hidden;
 }
 
+.productionAssetPreview.mainAsset{
+  box-shadow:inset 0 0 0 2px #a98552;
+}
+
 .productionAssetPreview img{
-  width:100%;
-  aspect-ratio:4/5;
-  object-fit:cover;
   display:block;
+  width:100%;
+  height:168px;
+  object-fit:cover;
+  transition:transform .22s ease;
+}
+
+.productionAssetPreview:hover img{
+  transform:scale(1.025);
+}
+
+.productionSetPreview.assets-1
+.productionAssetPreview img{
+  height:210px;
 }
 
 .productionAssetPreview figcaption{
   position:absolute;
-  left:8px;
-  bottom:8px;
-  padding:5px 8px;
+  left:7px;
+  bottom:7px;
+  padding:4px 7px;
   border-radius:999px;
-  background:rgba(23,21,19,.82);
+  background:rgba(31,28,25,.78);
   color:#fff;
-  font-size:10px;
-  font-weight:700;
+  font-size:9px;
+  line-height:1;
+  font-weight:800;
+  letter-spacing:.08em;
+  backdrop-filter:blur(5px);
+}
+
+.productionAssetPreview.mainAsset figcaption{
+  background:#8b6739;
 }
 
 .productionSetBody{
-  padding:18px;
+  display:flex;
+  flex-direction:column;
+  flex:1;
+  padding:15px 16px 16px;
 }
 
 .productionSetTitleRow{
   display:flex;
   justify-content:space-between;
   align-items:flex-start;
-  gap:18px;
+  gap:14px;
 }
 
 .productionSetEyebrow{
-  font-size:10px;
+  font-size:9px;
   letter-spacing:.18em;
-  font-weight:700;
+  font-weight:800;
   color:#9a7649;
 }
 
 .productionSetTitleRow h2{
-  margin:5px 0 3px;
+  margin:4px 0 2px;
   font-family:'Playfair Display';
-  font-size:24px;
+  font-size:21px;
+  line-height:1.2;
 }
 
 .productionSetSku{
   color:#837d75;
-  font-size:11px;
+  font-size:10px;
 }
 
 .productionReadyBadge{
   display:inline-flex;
   align-items:center;
-  gap:6px;
-  padding:7px 10px;
+  gap:5px;
+  padding:6px 9px;
   border-radius:999px;
   background:#f1ebe1;
   color:#765a34;
-  font-size:11px;
-  font-weight:700;
+  font-size:10px;
+  font-weight:800;
   white-space:nowrap;
 }
 
 .productionSetMeta{
   display:flex;
   flex-wrap:wrap;
-  gap:8px;
-  margin-top:14px;
+  gap:6px;
+  margin-top:11px;
 }
 
 .productionSetMeta span{
   border:1px solid #ded8cf;
   background:#faf8f4;
   border-radius:999px;
-  padding:6px 9px;
+  padding:5px 8px;
   color:#766f67;
-  font-size:11px;
+  font-size:10px;
 }
 
 .productionSetActions{
   display:flex;
   flex-wrap:wrap;
-  gap:9px;
-  margin-top:18px;
+  gap:8px;
+  margin-top:auto;
+  padding-top:15px;
+}
+
+.productionSetActions .btn{
+  min-height:36px;
+}
+
+.productionLibraryGrid{
+  display:grid;
+  grid-template-columns:repeat(2,minmax(0,1fr));
+  align-items:start;
+  gap:18px;
+  padding-bottom:80px;
+}
+
+@media(max-width:1100px){
+  .productionLibraryGrid{
+    grid-template-columns:1fr;
+  }
 }
 
 @media(max-width:700px){
@@ -326,13 +398,16 @@
   .productionReadyBadge{
     width:max-content;
   }
-}
 
-.productionLibraryGrid{
-  display:grid;
-  grid-template-columns:repeat(2,minmax(0,1fr));
-  gap:20px;
-  padding-bottom:80px;
+  .productionSetPreview,
+  .productionSetPreview.assets-3,
+  .productionSetPreview.assets-4{
+    grid-template-columns:repeat(2,minmax(0,1fr));
+  }
+
+  .productionAssetPreview img{
+    height:180px;
+  }
 }
 
 .productionLibrarySummary{

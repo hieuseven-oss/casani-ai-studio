@@ -27,21 +27,21 @@ function assetLabel(
   approved: boolean
 ) {
   if (approved) {
-    return 'Ảnh chính';
+    return 'MAIN';
   }
 
   switch (role) {
     case 'left_three_quarter':
-      return '3/4 trái';
+      return '3/4 L';
 
     case 'right_three_quarter':
-      return '3/4 phải';
+      return '3/4 R';
 
     case 'hero_close':
-      return 'Cận cảnh đèn';
+      return 'HERO';
 
     default:
-      return 'Ảnh bổ sung';
+      return 'EXTRA';
   }
 }
 
@@ -53,12 +53,25 @@ export default function ProductionSetCard({
 }: ProductionSetCardProps) {
   return (
     <article className="productionSetCard">
-      <div className="productionSetPreview">
+      <div
+        className={
+          `productionSetPreview assets-${Math.min(
+            set.assets.length,
+            4
+          )}`
+        }
+      >
         {set.assets.map(
           (asset) => (
             <figure
               key={asset.id}
-              className="productionAssetPreview"
+              className={
+                `productionAssetPreview ${
+                  asset.approved
+                    ? 'mainAsset'
+                    : ''
+                }`
+              }
             >
               <img
                 src={asset.imageUrl}
@@ -132,7 +145,7 @@ export default function ProductionSetCard({
             }
           >
             <ExternalLink size={16} />
-            Mở Studio
+            Studio
           </button>
 
           <button
@@ -148,7 +161,7 @@ export default function ProductionSetCard({
             <Download size={16} />
             {downloading
               ? 'Đang tải...'
-              : 'Tải bộ ảnh'}
+              : 'Download'}
           </button>
         </div>
       </div>
