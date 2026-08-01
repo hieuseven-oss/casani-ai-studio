@@ -228,10 +228,16 @@
     border-color .18s ease;
 }
 
-.productionSetCard:hover{
-  transform:translateY(-2px);
-  border-color:#d4c9bb;
-  box-shadow:0 12px 28px rgba(35,29,22,.09);
+@media (hover:hover) and (pointer:fine){
+  .productionSetCard:hover{
+    transform:translateY(-2px);
+    border-color:#d4c9bb;
+    box-shadow:0 12px 28px rgba(35,29,22,.09);
+  }
+
+  .productionAssetPreview:hover img{
+    transform:scale(1.025);
+  }
 }
 
 .productionSetPreview{
@@ -239,6 +245,7 @@
   grid-template-columns:repeat(4,minmax(0,1fr));
   gap:1px;
   min-height:0;
+  overflow:hidden;
   background:#e5dfd6;
 }
 
@@ -272,10 +279,6 @@
   height:168px;
   object-fit:cover;
   transition:transform .22s ease;
-}
-
-.productionAssetPreview:hover img{
-  transform:scale(1.025);
 }
 
 .productionSetPreview.assets-1
@@ -390,9 +393,10 @@
   }
 }
 
-@media(max-width:700px){
+@media(max-width:760px){
   .productionSetTitleRow{
     display:grid;
+    gap:10px;
   }
 
   .productionReadyBadge{
@@ -405,8 +409,75 @@
     grid-template-columns:repeat(2,minmax(0,1fr));
   }
 
+  .productionAssetPreview img,
+  .productionSetPreview.assets-1
   .productionAssetPreview img{
-    height:180px;
+    height:170px;
+  }
+
+  .productionSetBody{
+    padding:14px;
+  }
+
+  .productionSetTitleRow h2{
+    font-size:20px;
+  }
+}
+
+@media(max-width:520px){
+  .productionLibraryGrid{
+    gap:14px;
+  }
+
+  .productionAssetPreview img,
+  .productionSetPreview.assets-1
+  .productionAssetPreview img{
+    height:145px;
+  }
+
+  .productionAssetPreview figcaption{
+    left:6px;
+    bottom:6px;
+    padding:4px 6px;
+    font-size:8px;
+  }
+
+  .productionSetBody{
+    padding:13px;
+  }
+
+  .productionSetTitleRow h2{
+    font-size:19px;
+  }
+
+  .productionSetActions{
+    display:grid;
+    grid-template-columns:1fr 1fr;
+    width:100%;
+  }
+
+  .productionSetActions .btn{
+    width:100%;
+    justify-content:center;
+  }
+
+  .productionReadyBadge{
+    font-size:9px;
+  }
+}
+
+@media(prefers-reduced-motion:reduce){
+  .productionSetCard,
+  .productionAssetPreview img{
+    transition:none;
+  }
+
+  .productionSetCard:hover{
+    transform:none;
+  }
+
+  .productionAssetPreview:hover img{
+    transform:none;
   }
 }
 
