@@ -25,7 +25,6 @@ import {
   approveGenerationOutput,
   updateOutputShortlist,
   updateOutputDecisionMeta,
-  updateGenerationProductionReady,
 } from '../lib/generationService';
 
 import {
@@ -56,8 +55,6 @@ type Generation = {
   id: string;
   status: string | null;
   model: string | null;
-  production_ready: boolean;
-  production_ready_at: string | null;
   created_at: string;
 };
 
@@ -65,14 +62,6 @@ type GenerationOutput = {
   id: string;
   generation_id: string;
   image_url: string;
-
-  // V12 semantic output role.
-  // Camera Set examples:
-  // left_three_quarter
-  // right_three_quarter
-  // hero_close
-  role: string | null;
-
   approved: boolean | null;
   shortlisted: boolean;
   shortlist_rank: number | null;
@@ -85,68 +74,6 @@ type ShortlistItem = GenerationOutput & {
   versionNumber: number;
   visualNumber: number;
 };
-
-const CAMERA_SET_ROLES = [
-  'left_three_quarter',
-  'right_three_quarter',
-  'hero_close',
-] as const;
-
-function isCameraSetOutput(
-  output: GenerationOutput
-) {
-  return CAMERA_SET_ROLES.includes(
-    output.role as typeof CAMERA_SET_ROLES[number]
-  );
-}
-
-function isCompleteCameraSet(
-  outputs: GenerationOutput[]
-) {
-  return CAMERA_SET_ROLES.every(
-    (role) =>
-      outputs.some(
-        (output) =>
-          output.role === role
-      )
-  );
-}
-
-function outputRoleLabel(
-  role: string | null,
-  fallbackIndex?: number
-) {
-  switch (role) {
-    case 'front':
-      return 'Chính diện';
-
-    case 'left_three_quarter':
-      return '3/4 trái';
-
-    case 'right_three_quarter':
-      return '3/4 phải';
-
-    case 'hero_close':
-      return 'Cận cảnh đèn';
-
-    case 'detail':
-      return 'Chi tiết';
-
-    case 'catalog':
-      return 'Catalogue';
-
-    case 'lifestyle':
-      return 'Lifestyle';
-
-    case 'social':
-      return 'Social';
-
-    default:
-      return fallbackIndex
-        ? `AI visual ${fallbackIndex}`
-        : 'AI visual';
-  }
-}
 
 export default function Results() {
   const { id } = useParams();
@@ -189,12 +116,6 @@ export default function Results() {
   const [downloadingId, setDownloadingId] =
     useState<string | null>(null);
 
-  const [downloadingCameraSet, setDownloadingCameraSet] =
-    useState(false);
-
-  const [updatingProductionReady, setUpdatingProductionReady] =
-    useState(false);
-
   const [regenerating, setRegenerating] =
     useState(false);
 
@@ -213,19 +134,6 @@ export default function Results() {
   const [selectedOutputId, setSelectedOutputId] =
     useState<string | null>(null);
 
-  // Camera Master V10.2
-  //
-  // Independent from the Version currently being viewed.
-  // Camera variations must always branch from this stable
-  // visual instead of chaining from the latest camera output.
-  const [cameraMaster, setCameraMaster] =
-    useState<{
-      outputId?: string;
-      generationId: string;
-      imageUrl: string;
-      label: string;
-    } | null>(null);
-
   const [referenceMode, setReferenceMode] =
     useState<'visual' | 'product'>('visual');
 
@@ -234,6 +142,21 @@ export default function Results() {
       'scene' | 'lighting' | 'camera' | 'creative'
     >('scene');
 
+  type CompareItem = {
+    outputId: string;
+    generationId: string;
+    imageUrl: string;
+    approved: boolean;
+    versionNumber: number;
+    visualNumber: number;
+  };
+
+  // Cross-version Compare
+  const [compareItems, setCompareItems] =
+    useState<CompareItem[]>([]);
+
+  const compareMode =
+    compareItems.length > 0;
 
   async function loadProjectShortlist(
     history: Generation[]
@@ -252,7 +175,7 @@ export default function Results() {
       await supabase
         .from('generation_outputs')
         .select(
-          'id, generation_id, image_url, role, approved, shortlisted, shortlist_rank, shortlist_note, finalist, created_at'
+          'id, generation_id, image_url, approved, shortlisted, shortlist_rank, shortlist_note, finalist, created_at'
         )
         .in(
           'generation_id',
@@ -330,7 +253,7 @@ export default function Results() {
       await supabase
         .from('generation_outputs')
         .select(
-          'id, generation_id, image_url, role, approved, shortlisted, shortlist_rank, shortlist_note, finalist, created_at'
+          'id, generation_id, image_url, approved, shortlisted, shortlist_rank, shortlist_note, finalist, created_at'
         )
         .eq(
           'generation_id',
@@ -377,7 +300,6 @@ export default function Results() {
     setSelectedOutputId(
       preferred?.id || null
     );
-
   }
 
   async function loadGenerationHistory(
@@ -389,7 +311,7 @@ export default function Results() {
     } = await supabase
       .from('generations')
       .select(
-        'id, status, model, production_ready, production_ready_at, created_at'
+        'id, status, model, created_at'
       )
       .eq(
         'project_id',
@@ -665,39 +587,9 @@ export default function Results() {
           )
       );
 
-      setSelectedOutputId(
-        outputId
+      await loadProjectShortlist(
+        generations
       );
-
-      setReferenceMode(
-        'visual'
-      );
-
-      await updateGenerationProductionReady(
-        generationId,
-        true
-      );
-
-      const productionTimestamp =
-        new Date().toISOString();
-
-      setGenerations(
-        (current) =>
-          current.map(
-            (generation) =>
-              generation.id ===
-              generationId
-                ? {
-                    ...generation,
-                    production_ready:
-                      true,
-                    production_ready_at:
-                      productionTimestamp,
-                  }
-                : generation
-          )
-      );
-
     } catch (error) {
       console.error(
         error
@@ -713,6 +605,66 @@ export default function Results() {
         null
       );
     }
+  }
+
+  function toggleCompareOutput(
+    output: GenerationOutput,
+    visualNumber: number
+  ) {
+    if (!generationId) {
+      return;
+    }
+
+    const versionIndex =
+      generations.findIndex(
+        (generation) =>
+          generation.id === generationId
+      );
+
+    const item: CompareItem = {
+      outputId: output.id,
+      generationId,
+      imageUrl: output.image_url,
+      approved: Boolean(
+        output.approved
+      ),
+      versionNumber:
+        versionIndex >= 0
+          ? versionIndex + 1
+          : 1,
+      visualNumber,
+    };
+
+    setCompareItems(
+      (current) => {
+        const exists =
+          current.some(
+            (compareItem) =>
+              compareItem.outputId ===
+              output.id
+          );
+
+        if (exists) {
+          return current.filter(
+            (compareItem) =>
+              compareItem.outputId !==
+              output.id
+          );
+        }
+
+        if (current.length >= 2) {
+          return [
+            current[1],
+            item,
+          ];
+        }
+
+        return [
+          ...current,
+          item,
+        ];
+      }
+    );
   }
 
   async function useShortlistAsReference(
@@ -745,6 +697,55 @@ export default function Results() {
           block: 'start',
         });
     }, 100);
+  }
+
+  function toggleCompareShortlistItem(
+    item: ShortlistItem
+  ) {
+    const compareItem: CompareItem = {
+      outputId: item.id,
+      generationId:
+        item.generation_id,
+      imageUrl:
+        item.image_url,
+      approved:
+        Boolean(item.approved),
+      versionNumber:
+        item.versionNumber,
+      visualNumber:
+        item.visualNumber,
+    };
+
+    setCompareItems(
+      (current) => {
+        const exists =
+          current.some(
+            (entry) =>
+              entry.outputId ===
+              item.id
+          );
+
+        if (exists) {
+          return current.filter(
+            (entry) =>
+              entry.outputId !==
+              item.id
+          );
+        }
+
+        if (current.length >= 2) {
+          return [
+            current[1],
+            compareItem,
+          ];
+        }
+
+        return [
+          ...current,
+          compareItem,
+        ];
+      }
+    );
   }
 
   async function updateShortlistRank(
@@ -937,6 +938,22 @@ export default function Results() {
     }
   }
 
+  function removeCompareItem(
+    outputId: string
+  ) {
+    setCompareItems(
+      (current) =>
+        current.filter(
+          (item) =>
+            item.outputId !== outputId
+        )
+    );
+  }
+
+  function exitCompareMode() {
+    setCompareItems([]);
+  }
+
   async function downloadOutput(
     output: GenerationOutput,
     index: number,
@@ -991,146 +1008,6 @@ export default function Results() {
     }
   }
 
-  function outputRoleFileName(
-    role: string | null,
-    fallbackIndex: number
-  ) {
-    switch (role) {
-      case 'left_three_quarter':
-        return 'left-3q';
-
-      case 'right_three_quarter':
-        return 'right-3q';
-
-      case 'hero_close':
-        return 'hero-close';
-
-      case 'front':
-        return 'front';
-
-      default:
-        return `ai-visual-${fallbackIndex}`;
-    }
-  }
-
-  async function downloadCameraSet() {
-    if (
-      downloadingCameraSet ||
-      downloadingId ||
-      cameraSetOutputs.length === 0
-    ) {
-      return;
-    }
-
-    setDownloadingCameraSet(true);
-    setErrorMsg('');
-
-    try {
-      const safeName =
-        makeSafeFileName(
-          productName
-        ) || 'casani';
-
-      const versionNumber =
-        currentVersionNumber || 1;
-
-      const orderedCameraOutputs =
-        CAMERA_SET_ROLES.flatMap(
-          (role) =>
-            cameraSetOutputs.filter(
-              (output) =>
-                output.role === role
-            )
-        );
-
-      for (
-        let index = 0;
-        index < orderedCameraOutputs.length;
-        index += 1
-      ) {
-        const output =
-          orderedCameraOutputs[index];
-
-        const fileName =
-          `${safeName}` +
-          `-v${versionNumber}` +
-          `-${outputRoleFileName(
-            output.role,
-            index + 1
-          )}`;
-
-        await downloadRemoteImage(
-          output.image_url,
-          fileName
-        );
-      }
-    } catch (error) {
-      console.error(error);
-
-      setErrorMsg(
-        error instanceof Error
-          ? error.message
-          : 'Unable to download Camera Set.'
-      );
-    } finally {
-      setDownloadingCameraSet(false);
-    }
-  }
-
-  async function toggleProductionReady() {
-    if (
-      !generationId ||
-      updatingProductionReady ||
-      !hasCompleteCameraSet
-    ) {
-      return;
-    }
-
-    const nextValue =
-      !isProductionReady;
-
-    setUpdatingProductionReady(true);
-    setErrorMsg('');
-
-    try {
-      await updateGenerationProductionReady(
-        generationId,
-        nextValue
-      );
-
-      const timestamp =
-        nextValue
-          ? new Date().toISOString()
-          : null;
-
-      setGenerations(
-        (current) =>
-          current.map(
-            (generation) =>
-              generation.id === generationId
-                ? {
-                    ...generation,
-                    production_ready:
-                      nextValue,
-                    production_ready_at:
-                      timestamp,
-                  }
-                : generation
-          )
-      );
-    } catch (error) {
-      console.error(error);
-
-      setErrorMsg(
-        error instanceof Error
-          ? error.message
-          : 'Unable to update production state.'
-      );
-    } finally {
-      setUpdatingProductionReady(false);
-    }
-  }
-
   async function createNewVersion(
     instruction?: string,
     forceOriginalProduct = false
@@ -1168,20 +1045,10 @@ export default function Results() {
           output.id === selectedOutputId
       );
 
-    const cameraReference =
-      variationType === 'camera'
-        ? cameraMaster
-        : null;
-
-    const referenceImageUrl =
-      cameraReference?.imageUrl ||
-      selectedOutput?.image_url;
-
     const useSelectedVisual =
       !forceOriginalProduct &&
-      variationType !== 'scene' &&
       referenceMode === 'visual' &&
-      Boolean(referenceImageUrl);
+      Boolean(selectedOutput?.image_url);
 
     const variationInstruction =
       instruction?.trim()
@@ -1212,7 +1079,7 @@ export default function Results() {
 
         referenceImageUrl:
           useSelectedVisual
-            ? referenceImageUrl
+            ? selectedOutput?.image_url
             : undefined,
 
         variationType:
@@ -1248,12 +1115,6 @@ export default function Results() {
 
       model:
         DEFAULT_IMAGE_MODEL,
-
-      production_ready:
-        false,
-
-      production_ready_at:
-        null,
 
       created_at:
         new Date().toISOString(),
@@ -1319,21 +1180,15 @@ export default function Results() {
       return;
     }
 
-    const typedInstruction =
+    const instruction =
       customPrompt.trim();
 
-    const defaultInstruction =
-      variationType === 'scene'
-        ? 'Create a genuinely NEW premium architectural interior around the original product. The new result must visibly differ in architecture, room layout, furniture composition and spatial character from previous scenes, while preserving the exact product identity, geometry, finish, believable scale and realistic installation.'
-        : variationType === 'lighting'
-        ? 'Create a refined lighting variation of the same scene. Preserve the architecture, furniture, materials, product geometry, installation position and camera concept.'
-        : variationType === 'camera'
-        ? ''
-        : 'Create a tasteful controlled creative variation while preserving the product identity, believable scale and core visual direction.';
-
-    const instruction =
-      typedInstruction ||
-      defaultInstruction;
+    if (!instruction) {
+      setErrorMsg(
+        'Hãy nhập yêu cầu cho phiên bản mới.'
+      );
+      return;
+    }
 
     setGeneratingMore(
       true
@@ -1418,56 +1273,6 @@ export default function Results() {
       (output) =>
         output.id === selectedOutputId
     ) || null;
-
-  const currentVersionIndex =
-    generations.findIndex(
-      (generation) =>
-        generation.id === generationId
-    );
-
-  const currentVersionNumber =
-    currentVersionIndex >= 0
-      ? currentVersionIndex + 1
-      : null;
-
-  const currentGeneration =
-    currentVersionIndex >= 0
-      ? generations[currentVersionIndex]
-      : null;
-
-  const isProductionReady =
-    Boolean(
-      currentGeneration?.production_ready
-    );
-
-  const cameraSetOutputs =
-    outputs.filter(
-      isCameraSetOutput
-    );
-
-  // V12.5C
-  // Camera Set must always follow the production order:
-  // 3/4 left -> 3/4 right -> hero close.
-  // Do not depend on database row order.
-  const orderedOutputs =
-    cameraSetOutputs.length > 0
-      ? [
-          ...CAMERA_SET_ROLES.flatMap(
-            (role) =>
-              outputs.filter(
-                (output) =>
-                  output.role === role
-              )
-          ),
-          ...outputs.filter(
-            (output) =>
-              !isCameraSetOutput(output)
-          ),
-        ]
-      : outputs;
-
-  const hasCompleteCameraSet =
-    isCompleteCameraSet(outputs);
 
   return (
     <>
@@ -1617,6 +1422,199 @@ export default function Results() {
                   </button>
                 );
               }
+            )}
+          </div>
+        </section>
+      )}
+
+      {compareMode && (
+        <section
+          className="panel"
+          style={{
+            marginBottom: 28,
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent:
+                'space-between',
+              alignItems:
+                'center',
+              gap: 16,
+              marginBottom: 18,
+            }}
+          >
+            <div>
+              <p className="eyebrow">
+                CROSS-VERSION COMPARE
+              </p>
+
+              <h2>
+                Compare visuals
+              </h2>
+
+              <div
+                style={{
+                  opacity: 0.65,
+                  fontSize: 13,
+                }}
+              >
+                Compare up to two visuals
+                from different versions.
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="btn"
+              onClick={
+                exitCompareMode
+              }
+              disabled={busy}
+            >
+              Đóng so sánh
+            </button>
+          </div>
+
+          <div
+            style={{
+              display: 'grid',
+              gridTemplateColumns:
+                'repeat(auto-fit, minmax(280px, 1fr))',
+              gap: 18,
+            }}
+          >
+            {compareItems.map(
+              (item) => {
+                const isCurrentVersion =
+                  item.generationId ===
+                  generationId;
+
+                const liveOutput =
+                  isCurrentVersion
+                    ? outputs.find(
+                        (output) =>
+                          output.id ===
+                          item.outputId
+                      )
+                    : null;
+
+                const approved =
+                  liveOutput
+                    ? Boolean(
+                        liveOutput.approved
+                      )
+                    : item.approved;
+
+                return (
+                  <article
+                    className={`result ${
+                      approved
+                        ? 'approvedResult'
+                        : ''
+                    }`}
+                    key={
+                      item.outputId
+                    }
+                  >
+                    <img
+                      src={
+                        item.imageUrl
+                      }
+                      alt={`Version ${item.versionNumber} visual ${item.visualNumber}`}
+                    />
+
+                    <div className="resultActions">
+                      <b>
+                        Version{' '}
+                        {item.versionNumber}
+                        {' · '}
+                        Visual{' '}
+                        {item.visualNumber}
+                      </b>
+
+                      <button
+                        type="button"
+                        className={
+                          selectedOutputId ===
+                          item.outputId
+                            ? 'btn primary'
+                            : 'btn'
+                        }
+                        disabled={busy}
+                        onClick={async () => {
+                          if (
+                            item.generationId !==
+                            generationId
+                          ) {
+                            await selectVersion(
+                              item.generationId
+                            );
+                          }
+
+                          setSelectedOutputId(
+                            item.outputId
+                          );
+
+                          setReferenceMode(
+                            'visual'
+                          );
+
+                          setTimeout(() => {
+                            document
+                              .getElementById(
+                                'results-studio'
+                              )
+                              ?.scrollIntoView({
+                                behavior:
+                                  'smooth',
+                                block:
+                                  'start',
+                              });
+                          }, 100);
+                        }}
+                      >
+                        {selectedOutputId ===
+                        item.outputId
+                          ? 'Đã chọn làm mẫu'
+                          : 'Dùng làm mẫu'}
+                      </button>
+
+                      <button
+                        type="button"
+                        className="btn"
+                        disabled={busy}
+                        onClick={() =>
+                          removeCompareItem(
+                            item.outputId
+                          )
+                        }
+                      >
+                        Remove
+                      </button>
+
+                      {approved && (
+                        <span>
+                          ✓ Approved
+                        </span>
+                      )}
+                    </div>
+                  </article>
+                );
+              }
+            )}
+
+            {compareItems.length < 2 && (
+              <div
+                className="empty"
+                style={{
+                  minHeight: 240,
+                }}
+              >
+                Switch version and select
+                another visual to compare.
+              </div>
             )}
           </div>
         </section>
@@ -1797,195 +1795,8 @@ export default function Results() {
             </div>
           </div>
 
-          {variationType === 'camera' && (
-            <div
-              style={{
-                display: 'grid',
-                gap: 14,
-              }}
-            >
-              <div>
-                <b>Camera Master</b>
-
-                <div
-                  style={{
-                    marginTop: 8,
-                    padding: 12,
-                    border:
-                      '1px solid var(--line, #d8d0c5)',
-                    borderRadius: 10,
-                  }}
-                >
-                  {cameraMaster ? (
-                    <>
-                      <div
-                        style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: 12,
-                        }}
-                      >
-                        <img
-                          src={cameraMaster.imageUrl}
-                          alt="Camera Master"
-                          style={{
-                            width: 92,
-                            height: 92,
-                            objectFit: 'cover',
-                            borderRadius: 8,
-                            flexShrink: 0,
-                          }}
-                        />
-
-                        <div>
-                          <b>
-                            {cameraMaster.label}
-                          </b>
-
-                          <div
-                            style={{
-                              marginTop: 4,
-                              fontSize: 13,
-                              opacity: 0.65,
-                            }}
-                          >
-                            Camera Master cố định.
-                            Chuyển Version sẽ không thay đổi ảnh này.
-                          </div>
-
-                          <div
-                            style={{
-                              marginTop: 4,
-                              fontSize: 12,
-                              opacity: 0.5,
-                            }}
-                          >
-                            Master Generation: {cameraMaster.generationId}
-                          </div>
-                        </div>
-                      </div>
-                    </>
-                  ) : (
-                    <div
-                      style={{
-                        fontSize: 13,
-                        opacity: 0.65,
-                      }}
-                    >
-                      Chưa có Camera Master.
-                      Hãy chọn một ảnh chính diện,
-                      sau đó đặt làm Camera Master.
-                    </div>
-                  )}
-
-                  <button
-                    type="button"
-                    className="btn"
-                    style={{
-                      marginTop: 10,
-                    }}
-                    disabled={
-                      busy ||
-                      !selectedOutput
-                    }
-                    onClick={() => {
-                      if (
-                        !selectedOutput ||
-                        !generationId
-                      ) {
-                        return;
-                      }
-
-                      setCameraMaster({
-                        generationId,
-
-                        imageUrl:
-                          selectedOutput.image_url,
-
-                        label:
-                          `Version ${
-                            selectedVersionIndex >= 0
-                              ? selectedVersionIndex + 1
-                              : ''
-                          } · Chính diện`,
-                      });
-
-                      setCameraPreset(
-                        'front'
-                      );
-
-                      setReferenceMode(
-                        'visual'
-                      );
-                    }}
-                  >
-                    Đặt ảnh đang chọn làm Camera Master
-                  </button>
-                </div>
-              </div>
-
-              <div>
-                <b>Bộ góc máy</b>
-
-                <div
-                  style={{
-                    marginTop: 10,
-                    padding: 12,
-                    border:
-                      '1px solid var(--line, #d8d0c5)',
-                    borderRadius: 10,
-                  }}
-                >
-                  <div
-                    style={{
-                      fontSize: 13,
-                      lineHeight: 1.6,
-                    }}
-                  >
-                    Từ Camera Master chính diện,
-                    hệ thống sẽ tạo cùng một không gian
-                    ở 3 góc bổ sung:
-                  </div>
-
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                      gap: 8,
-                      marginTop: 10,
-                    }}
-                  >
-                    <span className="selected">
-                      3/4 trái
-                    </span>
-
-                    <span className="selected">
-                      3/4 phải
-                    </span>
-
-                    <span className="selected">
-                      Cận cảnh đèn
-                    </span>
-                  </div>
-
-                  <div
-                    style={{
-                      marginTop: 10,
-                      fontSize: 12,
-                      opacity: 0.6,
-                    }}
-                  >
-                    Cả 3 ảnh sẽ dùng trực tiếp
-                    cùng một Camera Master.
-                    Không tạo nối tiếp từ ảnh trước.
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
           <div>
-            <b>Yêu cầu bổ sung <span style={{ opacity: 0.55, fontWeight: 400 }}>(không bắt buộc)</span></b>
+            <b>Yêu cầu sáng tạo</b>
 
             <textarea
               value={customPrompt}
@@ -1995,7 +1806,7 @@ export default function Results() {
                 )
               }
               disabled={busy}
-              placeholder="Có thể để trống. Hoặc mô tả thêm điều bạn muốn thay đổi..."
+              placeholder="Ví dụ: Giữ nguyên kiến trúc và mẫu đèn. Chuyển ánh sáng sang hoàng hôn, tăng chiều sâu không gian..."
               rows={4}
               style={{
                 width: '100%',
@@ -2005,6 +1816,43 @@ export default function Results() {
             />
           </div>
 
+          {variationType === 'camera' && (
+            <div>
+              <b>Góc chụp</b>
+
+              <div className="chips" style={{ marginTop: 10 }}>
+                {[
+                  ['front', 'Chính diện'],
+                  ['left_three_quarter', '3/4 trái'],
+                  ['right_three_quarter', '3/4 phải'],
+                  ['hero_close', 'Cận cảnh đèn'],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    type="button"
+                    className={
+                      cameraPreset === value
+                        ? 'selected'
+                        : ''
+                    }
+                    disabled={busy}
+                    onClick={() =>
+                      setCameraPreset(
+                        value as
+                          | 'front'
+                          | 'left_three_quarter'
+                          | 'right_three_quarter'
+                          | 'hero_close'
+                      )
+                    }
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div>
             <button
               type="button"
@@ -2013,38 +1861,25 @@ export default function Results() {
               disabled={
                 busy ||
                 (
-                  referenceMode === 'visual' &&
-                  !selectedOutputId
+                  // For camera variation, allow empty prompt when using AI visual as reference
+                  !(variationType === 'camera' && referenceMode === 'visual' && selectedOutputId) &&
+                  !customPrompt.trim()
                 ) ||
                 (
-                  variationType === 'camera' &&
-                  (
-                    referenceMode !== 'visual' ||
-                    (
-                      cameraPreset !== 'front' &&
-                      !cameraMaster
-                    ) ||
-                    (
-                      cameraPreset === 'front' &&
-                      !selectedOutputId
-                    )
-                  )
+                  referenceMode === 'visual' &&
+                  !selectedOutputId
                 )
               }
             >
               {generatingMore ? (
                 <>
                   <Loader2 size={16} />
-                  {variationType === 'camera'
-                    ? 'Đang tạo bộ góc máy...'
-                    : 'Đang tạo biến thể...'}
+                  Đang tạo biến thể...
                 </>
               ) : (
                 <>
                   <Sparkles size={16} />
-                  {variationType === 'camera'
-                    ? 'Tạo bộ góc máy'
-                    : 'Tạo biến thể'}
+                  Tạo biến thể
                 </>
               )}
             </button>
@@ -2063,133 +1898,6 @@ export default function Results() {
           Đang tải phiên bản...
         </div>
       ) : (
-        <>
-        {cameraSetOutputs.length > 0 && (
-          <section
-            className={`cameraSetPanel ${
-              hasCompleteCameraSet
-                ? 'complete'
-                : ''
-            }`}
-          >
-            <div className="cameraSetHeading">
-              <div>
-                <span className="cameraSetEyebrow">
-                  CAMERA SET
-                </span>
-
-                <h2>
-                  {currentVersionNumber
-                    ? `Version ${currentVersionNumber}`
-                    : 'Bộ góc máy'}
-                </h2>
-
-                <p>
-                  {hasCompleteCameraSet
-                    ? '3 ảnh · Cùng một không gian · Bộ góc máy hoàn chỉnh'
-                    : `${cameraSetOutputs.length}/3 ảnh · Đang hoàn thiện bộ góc máy`}
-                </p>
-              </div>
-
-              <div className="cameraSetHeaderActions">
-                <span
-                  className={`cameraSetStatus ${
-                    hasCompleteCameraSet
-                      ? 'ready'
-                      : ''
-                  }`}
-                >
-                  {hasCompleteCameraSet
-                    ? 'Hoàn chỉnh'
-                    : `${cameraSetOutputs.length}/3`}
-                </span>
-
-                <button
-                  type="button"
-                  className={
-                    isProductionReady
-                      ? 'btn primary'
-                      : 'btn'
-                  }
-                  onClick={toggleProductionReady}
-                  disabled={
-                    updatingProductionReady ||
-                    !hasCompleteCameraSet
-                  }
-                >
-                  {updatingProductionReady ? (
-                    <>
-                      <Loader2 size={16} />
-                      Đang cập nhật...
-                    </>
-                  ) : isProductionReady ? (
-                    <>
-                      <Check size={16} />
-                      Production Ready
-                    </>
-                  ) : (
-                    <>
-                      <Check size={16} />
-                      Duyệt bộ ảnh
-                    </>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  className="btn"
-                  onClick={downloadCameraSet}
-                  disabled={
-                    downloadingCameraSet ||
-                    Boolean(downloadingId) ||
-                    !hasCompleteCameraSet
-                  }
-                >
-                  {downloadingCameraSet ? (
-                    <>
-                      <Loader2 size={16} />
-                      Đang tải bộ ảnh...
-                    </>
-                  ) : (
-                    <>
-                      <Download size={16} />
-                      Tải cả bộ
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-
-            <div className="cameraSetRoles">
-              {CAMERA_SET_ROLES.map(
-                (role) => {
-                  const available =
-                    cameraSetOutputs.some(
-                      (output) =>
-                        output.role === role
-                    );
-
-                  return (
-                    <span
-                      key={role}
-                      className={
-                        available
-                          ? 'available'
-                          : ''
-                      }
-                    >
-                      {available
-                        ? '✓ '
-                        : '○ '}
-                      {outputRoleLabel(role)}
-                    </span>
-                  );
-                }
-              )}
-            </div>
-          </section>
-        )}
-
         <div className="resultGrid">
           {productDisplayUrl && (
             <article className="result">
@@ -2208,8 +1916,8 @@ export default function Results() {
             </article>
           )}
 
-          {orderedOutputs.length > 0 ? (
-            orderedOutputs.map(
+          {outputs.length > 0 ? (
+            outputs.map(
               (
                 output,
                 index
@@ -2240,6 +1948,12 @@ export default function Results() {
                   selectedOutputId ===
                   output.id;
 
+                const isCompared =
+                  compareItems.some(
+                    (item) =>
+                      item.outputId ===
+                      output.id
+                  );
 
                 return (
                   <article
@@ -2254,19 +1968,85 @@ export default function Results() {
                       src={
                         output.image_url
                       }
-                      alt={outputRoleLabel(
-                        output.role,
+                      alt={`AI visual ${
                         index + 1
-                      )}
+                      }`}
                     />
 
                     <div className="resultActions">
                       <span>
-                        {outputRoleLabel(
-                          output.role,
-                          index + 1
-                        )}
+                        AI visual{' '}
+                        {index + 1}
                       </span>
+
+                      <button
+                        type="button"
+                        className={
+                          isCompared
+                            ? 'btn primary'
+                            : 'btn'
+                        }
+                        onClick={() =>
+                          toggleCompareOutput(
+                            output,
+                            index + 1
+                          )
+                        }
+                        disabled={busy}
+                      >
+                        {isCompared
+                          ? 'Đang so sánh'
+                          : 'So sánh'}
+                      </button>
+
+                      <button
+                        type="button"
+                        className={
+                          isSelected
+                            ? 'btn primary'
+                            : 'btn'
+                        }
+                        onClick={() => {
+                          setSelectedOutputId(
+                            output.id
+                          );
+                          setReferenceMode(
+                            'visual'
+                          );
+                        }}
+                        disabled={busy}
+                      >
+                        {isSelected
+                          ? 'Đã chọn'
+                          : 'Chọn'}
+                      </button>
+
+                      <button
+                        type="button"
+                        className={
+                          isShortlisted
+                            ? 'btn primary'
+                            : 'btn'
+                        }
+                        onClick={() =>
+                          toggleShortlist(
+                            output
+                          )
+                        }
+                        disabled={
+                          Boolean(
+                            shortlistingId
+                          ) ||
+                          busy ||
+                          isApproved
+                        }
+                      >
+                        {isShortlisting
+                          ? 'Đang lưu...'
+                          : isShortlisted
+                          ? '★ Đã chọn'
+                          : '☆ Thêm vào danh sách'}
+                      </button>
 
                       <button
                         type="button"
@@ -2293,17 +2073,17 @@ export default function Results() {
                             <Loader2
                               size={16}
                             />
-                            Đang chọn...
+                            Saving...
                           </>
                         ) : isApproved ? (
                           <>
                             <Check
                               size={16}
                             />
-                            Đã chọn
+                            Approved
                           </>
                         ) : (
-                          'Chọn ảnh'
+                          'Duyệt'
                         )}
                       </button>
 
@@ -2361,7 +2141,6 @@ export default function Results() {
             </div>
           )}
         </div>
-        </>
       )}
     </>
   );

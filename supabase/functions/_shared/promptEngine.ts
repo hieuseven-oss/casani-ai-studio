@@ -84,63 +84,6 @@ const COMPOSITION_PROMPTS: Record<string, string> = {
     'use a tighter premium editorial composition emphasizing product detail, materials and craftsmanship',
 };
 
-const PRODUCT_HERO_QUALITY = `
-CASANI PRODUCT HERO QUALITY — HIGHEST VISUAL PRIORITY
-
-The supplied lighting fixture is the commercial HERO PRODUCT.
-The interior exists to present the product, not compete with it.
-
-PRODUCT IDENTITY LOCK:
-- preserve the exact manufactured lighting fixture from the supplied product reference
-- preserve its silhouette, proportions, construction, mounting system and component arrangement
-- preserve canopy, suspension system, frame, metal connections, crystals, glass and decorative elements
-- preserve true product color, finish and material identity
-- never redesign, simplify, embellish, replace or invent product details
-
-OPTICAL PRODUCT FOCUS — CRITICAL:
-- treat the lighting fixture as the primary autofocus subject of a real professional camera
-- place the principal plane of optical focus on the lighting fixture
-- the fixture should appear naturally clearer than the supporting interior
-- achieve product prominence primarily through photographic focus hierarchy, composition, exposure and lighting
-- preserve the original softness and smooth material transitions of crystal and glass
-- improve product clarity only moderately and naturally
-- reveal only detail that belongs to the reference product
-- do not create harder edges, stronger facets or more geometric definition than the reference
-- do not exaggerate corners, outlines, crystal cuts or micro-texture
-- do not aggressively sharpen or increase micro-contrast
-
-SUPPORTING INTERIOR:
-- keep the interior photorealistic, premium and architecturally convincing
-- preserve enough architectural clarity to understand the complete scene
-- allow the interior to recede slightly in visual prominence
-- use gentle natural depth-of-field and focus falloff away from the fixture
-- background softness must remain subtle and photographic
-- do not strongly blur the room
-- do not destroy furniture, material or architectural information
-- do not make background surfaces visually sharper or more dominant than the fixture
-
-HIGHLIGHT CONTROL:
-- preserve natural sparkle, transparency, reflections and warm luminous character
-- keep bright transitions soft and photographic
-- avoid excessive bloom, haze and featureless white clipping
-- preserve visible product structure without forcing every crystal edge to become sharp
-- maintain smooth transitions between illuminated and transparent areas
-
-VISUAL HIERARCHY:
-1. exact lighting product identity
-2. natural optical focus on the lighting fixture
-3. premium photographic lighting and product presentation
-4. supporting interior realism
-
-The result should behave like a premium product photograph taken by a professional photographer:
-the camera is focused on the lighting fixture,
-the fixture is naturally clear and visually dominant,
-and the surrounding interior falls back gently without looking artificially blurred.
-
-This is a luxury LIGHTING PRODUCT advertisement inside a premium interior,
-not an interior-design advertisement that happens to contain a chandelier.
-`;
-
 const MATERIAL_PROMPTS: Record<string, string> = {
   Auto:
     'select premium interior materials naturally appropriate for the selected architecture',
@@ -198,12 +141,6 @@ export function buildLightingPrompt(
   const legacyCustom =
     input.custom_prompt?.trim();
 
-  const referenceMode =
-    input.reference_mode || 'product';
-
-  const variationType =
-    input.variation_type || 'creative';
-
   const cameraPreset = input.camera?.trim();
   let cameraInstruction = cameraPreset || '';
 
@@ -257,6 +194,12 @@ If the output could have been created simply by cropping the reference image, ca
       .filter(Boolean)
       .join('\n\n');
   }
+
+  const referenceMode =
+    input.reference_mode || 'product';
+
+  const variationType =
+    input.variation_type || 'creative';
 
   const visualReferenceRules =
     referenceMode === 'visual'
@@ -516,8 +459,6 @@ Avoid unnecessary redesign.
 `;
 
   return `
-${PRODUCT_HERO_QUALITY}
-
 Create a premium photorealistic architectural lighting advertising photograph.
 
 ${visualReferenceRules}
